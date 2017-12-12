@@ -19,12 +19,10 @@ package org.jupiter.rpc.consumer.invoker;
 import net.bytebuddy.implementation.bind.annotation.AllArguments;
 import net.bytebuddy.implementation.bind.annotation.Origin;
 import net.bytebuddy.implementation.bind.annotation.RuntimeType;
-import org.jupiter.rpc.JClient;
-import org.jupiter.rpc.consumer.cluster.ClusterInvoker;
 import org.jupiter.rpc.consumer.dispatcher.Dispatcher;
-import org.jupiter.rpc.consumer.future.InvokeFuture;
 import org.jupiter.rpc.model.metadata.ClusterStrategyConfig;
 import org.jupiter.rpc.model.metadata.MethodSpecialConfig;
+import org.jupiter.rpc.model.metadata.ServiceMetadata;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -39,21 +37,18 @@ import java.util.List;
  *
  * @author jiachun.fjc
  */
-public class SyncInvoker extends ClusterStrategyBridging {
+public class SyncInvoker extends AbstractInvoker {
 
-    public SyncInvoker(JClient client,
+    public SyncInvoker(String appName,
+                       ServiceMetadata metadata,
                        Dispatcher dispatcher,
                        ClusterStrategyConfig defaultStrategy,
                        List<MethodSpecialConfig> methodSpecialConfigs) {
-
-        super(client, dispatcher, defaultStrategy, methodSpecialConfigs);
+        super(appName, metadata, dispatcher, defaultStrategy, methodSpecialConfigs);
     }
 
     @RuntimeType
     public Object invoke(@Origin Method method, @AllArguments @RuntimeType Object[] args) throws Throwable {
-        String methodName = method.getName();
-        ClusterInvoker invoker = getClusterInvoker(methodName);
-        InvokeFuture<?> future = invoker.invoke(methodName, args, method.getReturnType());
-        return future.getResult();
+        return doInvoke(method.getName(), args, method.getReturnType(), true);
     }
 }

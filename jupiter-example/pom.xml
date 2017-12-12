@@ -21,7 +21,7 @@
     <parent>
         <artifactId>jupiter</artifactId>
         <groupId>org.jupiter-rpc</groupId>
-        <version>1.2.11</version>
+        <version>1.2.12</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -38,6 +38,20 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>1.0.13</version>
+        </dependency>
+
+        <!-- for test -->
+        <dependency>
+            <groupId>io.opentracing.brave</groupId>
+            <artifactId>brave-opentracing</artifactId>
+            <version>0.23.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.zipkin.brave</groupId>
+            <artifactId>brave-spancollector-http</artifactId>
+            <version>4.10.1</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

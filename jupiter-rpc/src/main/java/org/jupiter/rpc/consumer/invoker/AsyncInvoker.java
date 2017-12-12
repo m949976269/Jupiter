@@ -20,13 +20,12 @@ import net.bytebuddy.implementation.bind.annotation.AllArguments;
 import net.bytebuddy.implementation.bind.annotation.Origin;
 import net.bytebuddy.implementation.bind.annotation.RuntimeType;
 import org.jupiter.common.util.Reflects;
-import org.jupiter.rpc.JClient;
-import org.jupiter.rpc.consumer.cluster.ClusterInvoker;
 import org.jupiter.rpc.consumer.dispatcher.Dispatcher;
 import org.jupiter.rpc.consumer.future.InvokeFuture;
 import org.jupiter.rpc.consumer.future.InvokeFutureContext;
 import org.jupiter.rpc.model.metadata.ClusterStrategyConfig;
 import org.jupiter.rpc.model.metadata.MethodSpecialConfig;
+import org.jupiter.rpc.model.metadata.ServiceMetadata;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -42,23 +41,24 @@ import java.util.List;
  *
  * @author jiachun.fjc
  */
-public class AsyncInvoker extends ClusterStrategyBridging {
+public class AsyncInvoker extends AbstractInvoker {
 
-    public AsyncInvoker(JClient client,
+    public AsyncInvoker(String appName,
+                        ServiceMetadata metadata,
                         Dispatcher dispatcher,
                         ClusterStrategyConfig defaultStrategy,
                         List<MethodSpecialConfig> methodSpecialConfigs) {
-
-        super(client, dispatcher, defaultStrategy, methodSpecialConfigs);
+        super(appName, metadata, dispatcher, defaultStrategy, methodSpecialConfigs);
     }
 
     @RuntimeType
     public Object invoke(@Origin Method method, @AllArguments @RuntimeType Object[] args) throws Throwable {
-        String methodName = method.getName();
         Class<?> returnType = method.getReturnType();
-        ClusterInvoker invoker = getClusterInvoker(methodName);
-        InvokeFuture<?> future = invoker.invoke(methodName, args, returnType);
-        InvokeFutureContext.set(future);
+
+        Object result = doInvoke(method.getName(), args, returnType, false);
+
+        InvokeFutureContext.set((InvokeFuture<?>) result);
+
         return Reflects.getTypeDefaultValue(returnType);
     }
 }

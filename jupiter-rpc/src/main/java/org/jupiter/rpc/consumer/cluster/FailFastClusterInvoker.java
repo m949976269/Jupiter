@@ -16,7 +16,7 @@
 
 package org.jupiter.rpc.consumer.cluster;
 
-import org.jupiter.rpc.JClient;
+import org.jupiter.rpc.JRequest;
 import org.jupiter.rpc.consumer.dispatcher.Dispatcher;
 import org.jupiter.rpc.consumer.future.InvokeFuture;
 
@@ -32,10 +32,12 @@ import org.jupiter.rpc.consumer.future.InvokeFuture;
  *
  * @author jiachun.fjc
  */
-public class FailFastClusterInvoker extends AbstractClusterInvoker {
+public class FailFastClusterInvoker implements ClusterInvoker {
 
-    public FailFastClusterInvoker(JClient client, Dispatcher dispatcher) {
-        super(client, dispatcher);
+    private final Dispatcher dispatcher;
+
+    public FailFastClusterInvoker(Dispatcher dispatcher) {
+        this.dispatcher = dispatcher;
     }
 
     @Override
@@ -44,7 +46,7 @@ public class FailFastClusterInvoker extends AbstractClusterInvoker {
     }
 
     @Override
-    public <T> InvokeFuture<T> invoke(String methodName, Object[] args, Class<T> returnType) throws Exception {
-        return dispatcher.dispatch(client, methodName, args, returnType);
+    public <T> InvokeFuture<T> invoke(JRequest request, Class<T> returnType) throws Exception {
+        return dispatcher.dispatch(request, returnType);
     }
 }

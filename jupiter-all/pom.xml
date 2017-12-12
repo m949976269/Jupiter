@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.jupiter-rpc</groupId>
         <artifactId>jupiter</artifactId>
-        <version>1.2.11</version>
+        <version>1.2.12</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -113,6 +113,14 @@
             <version>${project.version}</version>
         </dependency>
         <!-- ### serialization impl: end -->
+
+        <!-- ### tracer: begin -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>jupiter-extension-tracing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- ### tracer: end -->
 
         <!-- ### transport impl: begin -->
         <dependency>
@@ -326,6 +334,7 @@
                     <includeDependencySources>true</includeDependencySources>
                     <dependencySourceIncludes>
                         <dependencySourceInclude>${project.groupId}:jupiter-common</dependencySourceInclude>
+                        <dependencySourceInclude>${project.groupId}:jupiter-extension</dependencySourceInclude>
                         <dependencySourceInclude>${project.groupId}:jupiter-flightexec</dependencySourceInclude>
                         <dependencySourceInclude>${project.groupId}:jupiter-monitor</dependencySourceInclude>
                         <dependencySourceInclude>${project.groupId}:jupiter-registry</dependencySourceInclude>

@@ -25,19 +25,17 @@ import org.jupiter.common.util.internal.UnsafeIntegerFieldUpdater;
 import org.jupiter.common.util.internal.UnsafeUpdater;
 import org.jupiter.common.util.internal.logging.InternalLogger;
 import org.jupiter.common.util.internal.logging.InternalLoggerFactory;
-import org.jupiter.rpc.JRequest;
+import org.jupiter.rpc.*;
 import org.jupiter.rpc.exception.*;
 import org.jupiter.rpc.flow.control.ControlResult;
 import org.jupiter.rpc.flow.control.FlowController;
 import org.jupiter.rpc.metric.Metrics;
 import org.jupiter.rpc.model.metadata.MessageWrapper;
 import org.jupiter.rpc.model.metadata.ResultWrapper;
-import org.jupiter.rpc.model.metadata.ServiceMetadata;
 import org.jupiter.rpc.model.metadata.ServiceWrapper;
 import org.jupiter.rpc.provider.ProviderInterceptor;
 import org.jupiter.rpc.provider.processor.AbstractProviderProcessor;
 import org.jupiter.rpc.tracing.TraceId;
-import org.jupiter.rpc.tracing.TracingRecorder;
 import org.jupiter.rpc.tracing.TracingUtil;
 import org.jupiter.serialization.Serializer;
 import org.jupiter.serialization.SerializerFactory;
@@ -51,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+import static org.jupiter.common.util.Preconditions.checkNotNull;
 import static org.jupiter.common.util.StackTraceUtil.stackTrace;
 
 /**
@@ -65,6 +64,8 @@ public class MessageTask implements RejectedRunnable {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(MessageTask.class);
 
     private static final boolean METRIC_NEEDED = SystemPropertyUtil.getBoolean("jupiter.metric.needed", true);
+
+    private static final Signal INVOKE_ERROR = Signal.valueOf(MessageTask.class, "INVOKE_ERROR");
 
     private static final UnsafeIntegerFieldUpdater<TraceId> traceNodeUpdater =
             UnsafeUpdater.newIntegerFieldUpdater(TraceId.class, "node");
@@ -84,6 +85,13 @@ public class MessageTask implements RejectedRunnable {
         // stack copy
         final AbstractProviderProcessor _processor = processor;
         final JRequest _request = request;
+
+        // 全局流量控制
+        ControlResult ctrl = _processor.flowControl(_request);
+        if (!ctrl.isAllowed()) {
+            rejected(Status.APP_FLOW_CONTROL, new JupiterFlowControlException(String.valueOf(ctrl)));
+            return;
+        }
 
         MessageWrapper msg;
         try {
@@ -110,13 +118,6 @@ public class MessageTask implements RejectedRunnable {
         final ServiceWrapper service = _processor.lookupService(msg.getMetadata());
         if (service == null) {
             rejected(Status.SERVICE_NOT_FOUND, new JupiterServiceNotFoundException(String.valueOf(msg)));
-            return;
-        }
-
-        // 全局流量控制
-        ControlResult ctrl = _processor.flowControl(_request);
-        if (!ctrl.isAllowed()) {
-            rejected(Status.APP_FLOW_CONTROL, new JupiterFlowControlException(String.valueOf(ctrl)));
             return;
         }
 
@@ -166,70 +167,15 @@ public class MessageTask implements RejectedRunnable {
         // stack copy
         final JRequest _request = request;
 
+        Context invokeCtx = new Context(service);
+
+        if (TracingUtil.isTracingNeeded()) {
+            setCurrentTraceId(_request.message().getTraceId());
+        }
+
         try {
-            MessageWrapper msg = _request.message();
-            String methodName = msg.getMethodName();
-            TraceId traceId = msg.getTraceId();
-
-            // bind current traceId
-            if (TracingUtil.isTracingNeeded()) {
-                bindCurrentTraceId(traceId);
-            }
-
-            Object provider = service.getServiceProvider();
-            Object[] args = msg.getArgs();
-
-            // 拦截器
-            ProviderInterceptor[] interceptors = service.getInterceptors();
-
-            if (interceptors != null) {
-                handleBeforeInvoke(interceptors, traceId, provider, methodName, args);
-            }
-
-            String callInfo = null;
-            Timer.Context timerCtx = null;
-            if (METRIC_NEEDED) {
-                callInfo = getCallInfo(msg.getMetadata(), methodName);
-                timerCtx = Metrics.timer(callInfo).time();
-            }
-
-            Object invokeResult = null;
-            Throwable failCause = null;
-            Class<?>[] exceptionTypes = null;
-            try {
-                List<Pair<Class<?>[], Class<?>[]>> methodExtension = service.getMethodExtension(methodName);
-                if (methodExtension == null) {
-                    throw new NoSuchMethodException(methodName);
-                }
-
-                // 根据JLS方法调用的静态分派规则查找最匹配的方法parameterTypes
-                Pair<Class<?>[], Class<?>[]> bestMatch = Reflects.findMatchingParameterTypesExt(methodExtension, args);
-                Class<?>[] parameterTypes = bestMatch.getFirst();
-                exceptionTypes = bestMatch.getSecond();
-                invokeResult = Reflects.fastInvoke(provider, methodName, parameterTypes, args);
-            } catch (Throwable t) {
-                // handle biz exception
-                handleException(exceptionTypes, failCause = t);
-                return;
-            } finally {
-                long elapsed = -1;
-                if (METRIC_NEEDED) {
-                    elapsed = timerCtx.stop();
-                }
-
-                if (interceptors != null) {
-                    handleAfterInvoke(interceptors, traceId, provider, methodName, args, invokeResult, failCause);
-                }
-
-                // tracing recoding
-                if (traceId != null && TracingUtil.isTracingNeeded()) {
-                    if (callInfo == null) {
-                        callInfo = getCallInfo(msg.getMetadata(), methodName);
-                    }
-                    TracingRecorder recorder = TracingUtil.getRecorder();
-                    recorder.recording(TracingRecorder.Role.PROVIDER, traceId.asText(), callInfo, elapsed, channel);
-                }
-            }
+            Object invokeResult = Chains.invoke(_request, invokeCtx)
+                    .getResult();
 
             ResultWrapper result = new ResultWrapper();
             result.setResult(invokeResult);
@@ -247,7 +193,16 @@ public class MessageTask implements RejectedRunnable {
 
             handleWriteResponse(response);
         } catch (Throwable t) {
-            processor.handleException(channel, _request, Status.SERVER_ERROR, t);
+            if (INVOKE_ERROR == t) {
+                // handle biz exception
+                handleException(invokeCtx.getExpectCauseTypes(), invokeCtx.getCause());
+            } else {
+                processor.handleException(channel, _request, Status.SERVER_ERROR, t);
+            }
+        } finally {
+            if (TracingUtil.isTracingNeeded()) {
+                TracingUtil.clearCurrent();
+            }
         }
     }
 
@@ -257,17 +212,17 @@ public class MessageTask implements RejectedRunnable {
             @Override
             public void operationSuccess(JChannel channel) throws Exception {
                 if (METRIC_NEEDED) {
-                    MetricsHolder.processingTimer.update(
-                            SystemClock.millisClock().now() - request.timestamp(), TimeUnit.MILLISECONDS);
+                    long duration = SystemClock.millisClock().now() - request.timestamp();
+                    MetricsHolder.processingTimer.update(duration, TimeUnit.MILLISECONDS);
                 }
             }
 
             @Override
             public void operationFailure(JChannel channel, Throwable cause) throws Exception {
-                logger.error(
-                        "Service response[traceId: {}] sent failed, elapsed: {} millis, channel: {}, cause: {}.",
-                        request.message().getTraceId(), SystemClock.millisClock().now() - request.timestamp(), channel, cause
-                );
+                TraceId traceId = TracingUtil.safeGetTraceId(request.message().getTraceId());
+                long duration = SystemClock.millisClock().now() - request.timestamp();
+                logger.error("Response sent failed, trace: {}, duration: {} millis, channel: {}, cause: {}.",
+                        traceId, duration, channel, cause);
             }
         });
     }
@@ -287,6 +242,40 @@ public class MessageTask implements RejectedRunnable {
 
         // 预期外的异常
         processor.handleException(channel, request, Status.SERVICE_UNEXPECTED_ERROR, failCause);
+    }
+
+    private static Object invoke(MessageWrapper msg, Context invokeCtx) throws Signal {
+        ServiceWrapper service = invokeCtx.getService();
+        Object provider = service.getServiceProvider();
+        String methodName = msg.getMethodName();
+        Object[] args = msg.getArgs();
+
+        Timer.Context timerCtx = null;
+        if (METRIC_NEEDED) {
+            timerCtx = Metrics.timer(msg.getOperationName()).time();
+        }
+
+        Class<?>[] expectCauseTypes = null;
+        try {
+            List<Pair<Class<?>[], Class<?>[]>> methodExtension = service.getMethodExtension(methodName);
+            if (methodExtension == null) {
+                throw new NoSuchMethodException(methodName);
+            }
+
+            // 根据JLS方法调用的静态分派规则查找最匹配的方法parameterTypes
+            Pair<Class<?>[], Class<?>[]> bestMatch = Reflects.findMatchingParameterTypesExt(methodExtension, args);
+            Class<?>[] parameterTypes = bestMatch.getFirst();
+            expectCauseTypes = bestMatch.getSecond();
+
+            return Reflects.fastInvoke(provider, methodName, parameterTypes, args);
+        } catch (Throwable t) {
+            invokeCtx.setCauseAndExpectTypes(t, expectCauseTypes);
+            throw INVOKE_ERROR;
+        } finally {
+            if (METRIC_NEEDED) {
+                timerCtx.stop();
+            }
+        }
     }
 
     @SuppressWarnings("all")
@@ -323,7 +312,7 @@ public class MessageTask implements RejectedRunnable {
         }
     }
 
-    private static void bindCurrentTraceId(TraceId traceId) {
+    private static void setCurrentTraceId(TraceId traceId) {
         if (traceId != null) {
             assert traceNodeUpdater != null;
             traceNodeUpdater.set(traceId, traceId.getNode() + 1);
@@ -331,12 +320,117 @@ public class MessageTask implements RejectedRunnable {
         TracingUtil.setCurrent(traceId);
     }
 
-    private static String getCallInfo(ServiceMetadata metadata, String methodName) {
-        String directory = metadata.directory();
-        return StringBuilderHelper.get()
-                .append(directory)
-                .append('#')
-                .append(methodName).toString();
+    public static class Context implements JFilterContext {
+
+        private final ServiceWrapper service;
+
+        private Object result;                  // 服务调用结果
+        private Throwable cause;                // 业务异常
+        private Class<?>[] expectCauseTypes;    // 预期内的异常类型
+
+        public Context(ServiceWrapper service) {
+            this.service = checkNotNull(service, "service");
+        }
+
+        public ServiceWrapper getService() {
+            return service;
+        }
+
+        public Object getResult() {
+            return result;
+        }
+
+        public void setResult(Object result) {
+            this.result = result;
+        }
+
+        public Throwable getCause() {
+            return cause;
+        }
+
+        public Class<?>[] getExpectCauseTypes() {
+            return expectCauseTypes;
+        }
+
+        public void setCauseAndExpectTypes(Throwable cause, Class<?>[] expectCauseTypes) {
+            this.cause = cause;
+            this.expectCauseTypes = expectCauseTypes;
+        }
+
+        @Override
+        public JFilter.Type getType() {
+            return JFilter.Type.PROVIDER;
+        }
+    }
+
+    static class InterceptorsFilter implements JFilter {
+
+        @Override
+        public Type getType() {
+            return Type.PROVIDER;
+        }
+
+        @Override
+        public <T extends JFilterContext> void doFilter(JRequest request, T filterCtx, JFilterChain next) throws Throwable {
+            Context invokeCtx = (Context) filterCtx;
+            ServiceWrapper service = invokeCtx.getService();
+            // 拦截器
+            ProviderInterceptor[] interceptors = service.getInterceptors();
+
+            if (interceptors == null || interceptors.length == 0) {
+                next.doFilter(request, filterCtx);
+            } else {
+                TraceId traceId = TracingUtil.getCurrent();
+                Object provider = service.getServiceProvider();
+
+                MessageWrapper msg = request.message();
+                String methodName = msg.getMethodName();
+                Object[] args = msg.getArgs();
+                Object invokeResult = invokeCtx.getResult();
+                Throwable cause = invokeCtx.getCause();
+
+                handleBeforeInvoke(interceptors, traceId, provider, methodName, args);
+                try {
+                    next.doFilter(request, filterCtx);
+                } finally {
+                    handleAfterInvoke(interceptors, traceId, provider, methodName, args, invokeResult, cause);
+                }
+            }
+        }
+    }
+
+    static class InvokeFilter implements JFilter {
+
+        @Override
+        public Type getType() {
+            return Type.PROVIDER;
+        }
+
+        @Override
+        public <T extends JFilterContext> void doFilter(JRequest request, T filterCtx, JFilterChain next) throws Throwable {
+            MessageWrapper msg = request.message();
+            Context invokeCtx = (Context) filterCtx;
+
+            Object invokeResult = MessageTask.invoke(msg, invokeCtx);
+
+            invokeCtx.setResult(invokeResult);
+        }
+    }
+
+    static class Chains {
+
+        private static final JFilterChain headChain;
+
+        static {
+            JFilterChain invokeChain = new DefaultFilterChain(new InvokeFilter(), null);
+            JFilterChain interceptChain = new DefaultFilterChain(new InterceptorsFilter(), invokeChain);
+            headChain = JFilterLoader.loadExtFilters(interceptChain, JFilter.Type.PROVIDER);
+        }
+
+        static <T extends JFilterContext> T invoke(JRequest request, T invokeCtx) throws Throwable {
+            headChain.doFilter(request, invokeCtx);
+            return invokeCtx;
+        }
     }
 
     // - Metrics -------------------------------------------------------------------------------------------------------

@@ -230,7 +230,7 @@ public class ProxyFactory<I> {
         }
 
         // dispatcher
-        Dispatcher dispatcher = dispatcher(metadata, serializerType)
+        Dispatcher dispatcher = dispatcher()
                 .hooks(hooks)
                 .timeoutMillis(timeoutMillis)
                 .methodSpecialConfigs(methodSpecialConfigs);
@@ -239,10 +239,10 @@ public class ProxyFactory<I> {
         Object handler;
         switch (invokeType) {
             case SYNC:
-                handler = new SyncInvoker(client, dispatcher, strategyConfig, methodSpecialConfigs);
+                handler = new SyncInvoker(client.appName(), metadata, dispatcher, strategyConfig, methodSpecialConfigs);
                 break;
             case ASYNC:
-                handler = new AsyncInvoker(client, dispatcher, strategyConfig, methodSpecialConfigs);
+                handler = new AsyncInvoker(client.appName(), metadata, dispatcher, strategyConfig, methodSpecialConfigs);
                 break;
             default:
                 throw reject("invokeType: " + invokeType);
@@ -251,13 +251,13 @@ public class ProxyFactory<I> {
         return Proxies.getDefault().newProxy(interfaceClass, handler);
     }
 
-    protected Dispatcher dispatcher(ServiceMetadata metadata, SerializerType serializerType) {
+    protected Dispatcher dispatcher() {
         switch (dispatchType) {
             case ROUND:
                 return new DefaultRoundDispatcher(
-                        LoadBalancerFactory.loadBalancer(loadBalancerType), metadata, serializerType);
+                        client, LoadBalancerFactory.loadBalancer(loadBalancerType), serializerType);
             case BROADCAST:
-                return new DefaultBroadcastDispatcher(metadata, serializerType);
+                return new DefaultBroadcastDispatcher(client, serializerType);
             default:
                 throw reject("dispatchType: " + dispatchType);
         }

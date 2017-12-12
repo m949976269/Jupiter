@@ -14,29 +14,20 @@
  * limitations under the License.
  */
 
-package org.jupiter.rpc.consumer.cluster;
-
-import org.jupiter.rpc.JClient;
-import org.jupiter.rpc.consumer.dispatcher.Dispatcher;
+package org.jupiter.rpc;
 
 /**
+ *
  * jupiter
- * org.jupiter.rpc.consumer.cluster
+ * org.jupiter.rpc
  *
  * @author jiachun.fjc
  */
-public abstract class AbstractClusterInvoker implements ClusterInvoker {
+public interface JFilterChain {
 
-    protected final JClient client;
-    protected final Dispatcher dispatcher;
+    JFilter getFilter();
 
-    public AbstractClusterInvoker(JClient client, Dispatcher dispatcher) {
-        this.client = client;
-        this.dispatcher = dispatcher;
-    }
+    JFilterChain getNext();
 
-    @Override
-    public String toString() {
-        return strategy().name();
-    }
+    <T extends JFilterContext> void doFilter(JRequest request, T filterCtx) throws Throwable;
 }

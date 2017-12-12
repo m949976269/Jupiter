@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-package org.jupiter.rpc.tracing;
+package org.jupiter.rpc;
 
 /**
- * An abstract view for performance.
  *
  * jupiter
- * org.jupiter.rpc.tracing
+ * org.jupiter.rpc
  *
  * @author jiachun.fjc
  */
-public abstract class TracingRecorder {
+public interface JFilter {
 
-    public abstract void recording(Role role, Object... args);
+    Type getType();
 
-    public enum Role {
+    <T extends JFilterContext> void doFilter(JRequest request, T filterCtx, JFilterChain next) throws Throwable;
+
+    enum Type {
         CONSUMER,
-        PROVIDER
+        PROVIDER,
+        ALL
     }
 }

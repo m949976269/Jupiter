@@ -49,8 +49,6 @@ public class TracingUtil {
 
     private static final boolean TRACING_NEEDED = SystemPropertyUtil.getBoolean("jupiter.tracing.needed", true);
 
-    private static final TracingRecorder tracingRecorder = JServiceLoader.load(TracingRecorder.class).first();
-
     private static final InternalThreadLocal<TraceId> traceThreadLocal = new InternalThreadLocal<>();
 
     // maximal value for 64bit systems is 2^22, see man 5 proc.
@@ -105,12 +103,12 @@ public class TracingUtil {
         }
     }
 
-    public static void clearCurrent() {
-        traceThreadLocal.remove();
+    public static TraceId safeGetTraceId(TraceId traceId) {
+        return traceId == null ? TraceId.NULL_TRACE_ID : traceId;
     }
 
-    public static TracingRecorder getRecorder() {
-        return tracingRecorder;
+    public static void clearCurrent() {
+        traceThreadLocal.remove();
     }
 
     private static String getHexProcessId(int pid) {

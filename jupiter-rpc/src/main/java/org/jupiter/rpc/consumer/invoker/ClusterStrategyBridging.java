@@ -17,7 +17,6 @@
 package org.jupiter.rpc.consumer.invoker;
 
 import org.jupiter.common.util.Maps;
-import org.jupiter.rpc.JClient;
 import org.jupiter.rpc.consumer.cluster.ClusterInvoker;
 import org.jupiter.rpc.consumer.cluster.FailFastClusterInvoker;
 import org.jupiter.rpc.consumer.cluster.FailOverClusterInvoker;
@@ -35,43 +34,42 @@ import java.util.Map;
  *
  * @author jiachun.fjc
  */
-public abstract class ClusterStrategyBridging {
+public class ClusterStrategyBridging {
 
     private final ClusterInvoker defaultClusterInvoker;
     private final Map<String, ClusterInvoker> methodSpecialClusterInvokerMapping;
 
-    public ClusterStrategyBridging(JClient client,
-                                   Dispatcher dispatcher,
+    public ClusterStrategyBridging(Dispatcher dispatcher,
                                    ClusterStrategyConfig defaultStrategy,
                                    List<MethodSpecialConfig> methodSpecialConfigs) {
-
-        this.defaultClusterInvoker = createClusterInvoker(client, dispatcher, defaultStrategy);
+        this.defaultClusterInvoker = createClusterInvoker(dispatcher, defaultStrategy);
         this.methodSpecialClusterInvokerMapping = Maps.newHashMap();
+
         for (MethodSpecialConfig config : methodSpecialConfigs) {
             ClusterStrategyConfig strategy = config.getStrategy();
             if (strategy != null) {
                 methodSpecialClusterInvokerMapping.put(
                         config.getMethodName(),
-                        createClusterInvoker(client, dispatcher, strategy)
+                        createClusterInvoker(dispatcher, strategy)
                 );
             }
         }
     }
 
-    public ClusterInvoker getClusterInvoker(String methodName) {
+    public ClusterInvoker findClusterInvoker(String methodName) {
         ClusterInvoker invoker = methodSpecialClusterInvokerMapping.get(methodName);
         return invoker != null ? invoker : defaultClusterInvoker;
     }
 
-    private ClusterInvoker createClusterInvoker(JClient client, Dispatcher dispatcher, ClusterStrategyConfig strategy) {
+    private ClusterInvoker createClusterInvoker(Dispatcher dispatcher, ClusterStrategyConfig strategy) {
         ClusterInvoker.Strategy s = strategy.getStrategy();
         switch (s) {
             case FAIL_FAST:
-                return new FailFastClusterInvoker(client, dispatcher);
+                return new FailFastClusterInvoker(dispatcher);
             case FAIL_OVER:
-                return new FailOverClusterInvoker(client, dispatcher, strategy.getFailoverRetries());
+                return new FailOverClusterInvoker(dispatcher, strategy.getFailoverRetries());
             case FAIL_SAFE:
-                return new FailSafeClusterInvoker(client, dispatcher);
+                return new FailSafeClusterInvoker(dispatcher);
             default:
                 throw new UnsupportedOperationException("strategy: " + strategy);
         }

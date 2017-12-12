@@ -25,13 +25,9 @@ import org.jupiter.rpc.*;
 import org.jupiter.rpc.consumer.future.DefaultInvokeFuture;
 import org.jupiter.rpc.exception.JupiterRemoteException;
 import org.jupiter.rpc.load.balance.LoadBalancer;
-import org.jupiter.rpc.model.metadata.MessageWrapper;
 import org.jupiter.rpc.model.metadata.MethodSpecialConfig;
 import org.jupiter.rpc.model.metadata.ResultWrapper;
 import org.jupiter.rpc.model.metadata.ServiceMetadata;
-import org.jupiter.rpc.tracing.TraceId;
-import org.jupiter.rpc.tracing.TracingRecorder;
-import org.jupiter.rpc.tracing.TracingUtil;
 import org.jupiter.serialization.Serializer;
 import org.jupiter.serialization.SerializerFactory;
 import org.jupiter.serialization.SerializerType;
@@ -57,27 +53,22 @@ abstract class AbstractDispatcher implements Dispatcher {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractDispatcher.class);
 
+    private final JClient client;
     private final LoadBalancer loadBalancer;                    // 软负载均衡
-    private final ServiceMetadata metadata;                     // 目标服务元信息
     private final Serializer serializerImpl;                    // 序列化/反序列化impl
     private ConsumerHook[] hooks = ConsumerHook.EMPTY_HOOKS;    // 消费者端钩子函数
     private long timeoutMillis = JConstants.DEFAULT_TIMEOUT;    // 调用超时时间设置
     // 针对指定方法单独设置的超时时间, 方法名为key, 方法参数类型不做区别对待
     private Map<String, Long> methodSpecialTimeoutMapping = Maps.newHashMap();
 
-    public AbstractDispatcher(ServiceMetadata metadata, SerializerType serializerType) {
-        this(null, metadata, serializerType);
+    public AbstractDispatcher(JClient client, SerializerType serializerType) {
+        this(client, null, serializerType);
     }
 
-    public AbstractDispatcher(LoadBalancer loadBalancer, ServiceMetadata metadata, SerializerType serializerType) {
+    public AbstractDispatcher(JClient client, LoadBalancer loadBalancer, SerializerType serializerType) {
+        this.client = client;
         this.loadBalancer = loadBalancer;
-        this.metadata = metadata;
         this.serializerImpl = SerializerFactory.getSerializer(serializerType.value());
-    }
-
-    @Override
-    public ServiceMetadata metadata() {
-        return metadata;
     }
 
     public Serializer serializer() {
@@ -125,14 +116,11 @@ abstract class AbstractDispatcher implements Dispatcher {
         return timeoutMillis;
     }
 
-    protected JChannel select(JClient client) {
-        // stack copy
-        final ServiceMetadata _metadata = metadata;
-
+    protected JChannel select(ServiceMetadata metadata) {
         CopyOnWriteGroupList groups = client
                 .connector()
-                .directory(_metadata);
-        JChannelGroup group = loadBalancer.select(groups, _metadata);
+                .directory(metadata);
+        JChannelGroup group = loadBalancer.select(groups, metadata);
 
         if (group != null) {
             if (group.isAvailable()) {
@@ -144,12 +132,12 @@ abstract class AbstractDispatcher implements Dispatcher {
             if (deadline > 0 && SystemClock.millisClock().now() > deadline) {
                 boolean removed = groups.remove(group);
                 if (removed) {
-                    logger.warn("Removed channel group: {} in directory: {} on [select].", group, _metadata.directory());
+                    logger.warn("Removed channel group: {} in directory: {} on [select].", group, metadata.directory());
                 }
             }
         } else {
             // for 3 seconds, expired not wait
-            if (!client.awaitConnections(_metadata, 3000)) {
+            if (!client.awaitConnections(metadata, 3000)) {
                 throw new IllegalStateException("no connections");
             }
         }
@@ -164,20 +152,10 @@ abstract class AbstractDispatcher implements Dispatcher {
         throw new IllegalStateException("no channel");
     }
 
-    // tracing
-    protected MessageWrapper doTracing(MessageWrapper message, JChannel channel) {
-        if (TracingUtil.isTracingNeeded()) {
-            TraceId traceId = TracingUtil.getCurrent();
-            if (traceId == TraceId.NULL_TRACE_ID) {
-                traceId = TraceId.newInstance(TracingUtil.generateTraceId());
-            }
-            message.setTraceId(traceId);
-
-            TracingRecorder recorder = TracingUtil.getRecorder();
-            recorder.recording(
-                    TracingRecorder.Role.CONSUMER, traceId.asText(), metadata.directory(), message.getMethodName(), channel);
-        }
-        return message;
+    protected JChannelGroup[] groups(ServiceMetadata metadata) {
+        return client.connector()
+                .directory(metadata)
+                .snapshot();
     }
 
     protected <T> DefaultInvokeFuture<T> write(

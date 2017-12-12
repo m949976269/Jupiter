@@ -16,12 +16,10 @@
 
 package org.jupiter.rpc.consumer.invoker;
 
-import org.jupiter.rpc.JClient;
-import org.jupiter.rpc.consumer.cluster.ClusterInvoker;
 import org.jupiter.rpc.consumer.dispatcher.Dispatcher;
-import org.jupiter.rpc.consumer.future.InvokeFuture;
 import org.jupiter.rpc.model.metadata.ClusterStrategyConfig;
 import org.jupiter.rpc.model.metadata.MethodSpecialConfig;
+import org.jupiter.rpc.model.metadata.ServiceMetadata;
 
 import java.util.List;
 
@@ -35,20 +33,18 @@ import java.util.List;
  *
  * @author jiachun.fjc
  */
-public class SyncGenericInvoker extends ClusterStrategyBridging implements GenericInvoker {
+public class SyncGenericInvoker extends AbstractInvoker implements GenericInvoker {
 
-    public SyncGenericInvoker(JClient client,
+    public SyncGenericInvoker(String appName,
+                              ServiceMetadata metadata,
                               Dispatcher dispatcher,
                               ClusterStrategyConfig defaultStrategy,
                               List<MethodSpecialConfig> methodSpecialConfigs) {
-
-        super(client, dispatcher, defaultStrategy, methodSpecialConfigs);
+        super(appName, metadata, dispatcher, defaultStrategy, methodSpecialConfigs);
     }
 
     @Override
     public Object $invoke(String methodName, Object... args) throws Throwable {
-        ClusterInvoker invoker = getClusterInvoker(methodName);
-        InvokeFuture<?> future = invoker.invoke(methodName, args, Object.class);
-        return future.getResult();
+        return doInvoke(methodName, args, Object.class, true);
     }
 }
