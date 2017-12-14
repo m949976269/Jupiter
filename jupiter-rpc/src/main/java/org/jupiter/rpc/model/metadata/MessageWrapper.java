@@ -16,10 +16,12 @@
 
 package org.jupiter.rpc.model.metadata;
 
+import org.jupiter.common.util.Maps;
 import org.jupiter.rpc.tracing.TraceId;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Request data wrapper.
@@ -40,6 +42,7 @@ public class MessageWrapper implements Serializable {
     private String methodName;              // 目标方法名称
     private Object[] args;                  // 目标方法参数
     private TraceId traceId;                // 链路追踪ID(全局唯一)
+    private Map<String, String> attachments;
 
     public MessageWrapper(ServiceMetadata metadata) {
         this.metadata = metadata;
@@ -93,6 +96,17 @@ public class MessageWrapper implements Serializable {
         this.traceId = traceId;
     }
 
+    public Map<String, String> getAttachments() {
+        return attachments;
+    }
+
+    public void putAttachment(String key, String value) {
+        if (attachments == null) {
+            attachments = Maps.newHashMap();
+        }
+        attachments.put(key, value);
+    }
+
     public String getOperationName() {
         return metadata.directory() + "." + methodName;
     }
@@ -104,7 +118,8 @@ public class MessageWrapper implements Serializable {
                 ", metadata=" + metadata +
                 ", methodName='" + methodName + '\'' +
                 ", args=" + Arrays.toString(args) +
-                ", traceId='" + traceId + '\'' +
+                ", traceId=" + traceId +
+                ", attachments=" + attachments +
                 '}';
     }
 }

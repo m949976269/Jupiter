@@ -17,7 +17,11 @@
 package org.jupiter.rpc;
 
 import org.jupiter.rpc.model.metadata.MessageWrapper;
+import org.jupiter.rpc.tracing.TracingUtil;
 import org.jupiter.transport.payload.JRequestBytes;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Consumer's request data.
@@ -68,6 +72,25 @@ public class JRequest {
 
     public void message(MessageWrapper message) {
         this.message = message;
+    }
+
+    public String getTraceId() {
+        if (message == null) {
+            return null;
+        }
+        return TracingUtil.safeGetTraceId(message.getTraceId()).asText();
+    }
+
+    public Map<String, String> getAttachments() {
+        Map<String, String> attachments =
+                message != null ? message.getAttachments() : null;
+        return attachments != null ? attachments : Collections.<String, String>emptyMap();
+    }
+
+    public void putAttachment(String key, String value) {
+        if (message != null) {
+            message.putAttachment(key, value);
+        }
     }
 
     @Override

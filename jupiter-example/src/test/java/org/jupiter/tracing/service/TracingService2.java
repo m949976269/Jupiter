@@ -14,32 +14,18 @@
  * limitations under the License.
  */
 
-package org.jupiter.tracing;
+package org.jupiter.tracing.service;
 
-import org.jupiter.registry.RegistryServer;
+import org.jupiter.rpc.ServiceProvider;
 
 /**
- * Client1 --> Server1AndClient2 --> Server2
- *
- * 1. 先启动 JupiterRegistryServer
- * 2. 再启动 Server2
- * 3. 接着启动 Server1AndClient2
- * 4. 最后启动 Client1
- *
  * jupiter
- * org.jupiter.tracing
+ * org.jupiter.tracing.service
  *
  * @author jiachun.fjc
  */
-public class JupiterRegistryServer {
+@ServiceProvider(group = "trace")
+public interface TracingService2 {
 
-    public static void main(String[] args) {
-        RegistryServer registryServer =
-                RegistryServer.Default.createRegistryServer(20001, 1); // 注册中心
-        try {
-            registryServer.startRegistryServer();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+    String call2(String text);
 }

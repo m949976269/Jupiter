@@ -16,7 +16,12 @@
 
 package org.jupiter.tracing;
 
-import org.jupiter.registry.RegistryServer;
+import org.jupiter.rpc.DefaultServer;
+import org.jupiter.rpc.JServer;
+import org.jupiter.rpc.model.metadata.ServiceWrapper;
+import org.jupiter.tracing.service.TracingService2;
+import org.jupiter.tracing.service.TracingService2Impl;
+import org.jupiter.transport.netty.JNettyTcpAcceptor;
 
 /**
  * Client1 --> Server1AndClient2 --> Server2
@@ -31,14 +36,24 @@ import org.jupiter.registry.RegistryServer;
  *
  * @author jiachun.fjc
  */
-public class JupiterRegistryServer {
+public class Server2 {
 
     public static void main(String[] args) {
-        RegistryServer registryServer =
-                RegistryServer.Default.createRegistryServer(20001, 1); // 注册中心
+        OpenTracingContext.setTracerFactory(new TestTracerFactory());
+
+        final JServer server = new DefaultServer().withAcceptor(new JNettyTcpAcceptor(18092));
         try {
-            registryServer.startRegistryServer();
-        } catch (Exception e) {
+            TracingService2 service = new TracingService2Impl();
+
+            ServiceWrapper serviceWrapper = server.serviceRegistry()
+                    .provider(service)
+                    .register();
+
+            server.connectToRegistryServer("127.0.0.1:20001");
+            server.publish(serviceWrapper);
+
+            server.start();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }

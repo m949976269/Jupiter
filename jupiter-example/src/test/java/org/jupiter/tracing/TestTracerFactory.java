@@ -16,30 +16,23 @@
 
 package org.jupiter.tracing;
 
-import org.jupiter.registry.RegistryServer;
+import brave.Tracing;
+import brave.opentracing.BraveTracer;
+import io.opentracing.Tracer;
 
 /**
- * Client1 --> Server1AndClient2 --> Server2
- *
- * 1. 先启动 JupiterRegistryServer
- * 2. 再启动 Server2
- * 3. 接着启动 Server1AndClient2
- * 4. 最后启动 Client1
- *
  * jupiter
  * org.jupiter.tracing
  *
  * @author jiachun.fjc
  */
-public class JupiterRegistryServer {
+public class TestTracerFactory implements TracerFactory {
 
-    public static void main(String[] args) {
-        RegistryServer registryServer =
-                RegistryServer.Default.createRegistryServer(20001, 1); // 注册中心
-        try {
-            registryServer.startRegistryServer();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+//    private final Tracer tracer = new MockTracer();
+    private final Tracer tracer = BraveTracer.create(Tracing.newBuilder().build());
+
+    @Override
+    public Tracer getTracer() {
+        return tracer;
     }
 }
