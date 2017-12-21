@@ -62,11 +62,11 @@ public abstract class AbstractRejectedExecutionHandler implements RejectedExecut
 
                 @Override
                 public void run() {
-                    String now = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+                    String now = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
                     String name = threadPoolName + "_" + now;
                     FileOutputStream fileOutput = null;
                     try {
-                        fileOutput = new FileOutputStream(new File(dumpPrefixName + ".dump_" + name + ".log"));
+                        fileOutput = new FileOutputStream(new File(dumpPrefixName + "_dump_" + name + ".log"));
 
                         List<String> stacks = JvmTools.jStack();
                         for (String s : stacks) {
@@ -79,7 +79,7 @@ public abstract class AbstractRejectedExecutionHandler implements RejectedExecut
                         }
 
                         if (JvmTools.memoryUsed() > 0.9) {
-                            JvmTools.jMap(dumpPrefixName + ".dump_" + name + ".bin", false);
+                            JvmTools.jMap(dumpPrefixName + "_dump_" + name + ".bin", false);
                         }
                     } catch (Throwable t) {
                         logger.error("Dump jvm info error: {}.", stackTrace(t));
