@@ -1,7 +1,32 @@
 Jupiter release notes
 ------------------------
 
-### 2017-12-20:
+### 2018-01-31: version 1.2.17.Beta
+- Add [Sequence 序号生成器](/jupiter-common/src/main/java/org/jupiter/common/util/Sequence.java)
+- Bug fix: ProviderInterceptor 参数 {Object result, Throwable failCause} 始终为null
+- Bug fix: Spring schema 数组属性注入失败
+- Add JupiterSpringClient#ConsumerInterceptor[] consumer端全局拦截器
+- ConsumerHook --> ConsumerInterceptor
+- Update [open-tracing](https://github.com/opentracing/opentracing-java) version: 0.31.0-RC1 --> 0.31.0
+- Update [netty](https://github.com/netty/netty) version: 4.1.19.Final --> 4.1.20.Final
+- Update [metrics-core](https://github.com/dropwizard/metrics) version: 3.1.2 --> 4.0.2
+- Update [affinity](https://github.com/OpenHFT/Java-Thread-Affinity) version: 3.0.6 --> 3.1.7
+- Update [asm](http://asm.ow2.org) version: 5.2 --> 6.0
+- Update [byte-buddy](https://github.com/raphw/byte-buddy) version: 1.6.3 --> 1.7.9
+- Update [disruptor](https://github.com/LMAX-Exchange/disruptor) version: 3.3.6 --> 3.3.7
+- Add [CallerRunsExecutorFactory](/jupiter-rpc/src/main/java/org/jupiter/rpc/executor/CallerRunsExecutorFactory.java)
+
+### 2018-01-22: version 1.2.16
+
+- Add [CloseableExecutor](/jupiter-rpc/src/main/java/org/jupiter/rpc/executor/CloseableExecutor.java)
+- Add method JClient#awaitConnections(Class<?> interfaceClass, long timeoutMillis)
+- Add method JClient#awaitConnections(Class<?> interfaceClass, String version, long timeoutMillis)
+- [感谢 @远墨 提供的图](/docs/static_files/jupiter-rpc.png)
+
+### 2018-01-17: version 1.2.15
+
+- [AbstractFuture#awaitDone 优化](https://github.com/fengjiachun/Jupiter/issues/44)
+- [关闭jupiter client/server](https://github.com/fengjiachun/Jupiter/issues/43)
 - [dump文件名在windows系统不能有 ":"](https://github.com/fengjiachun/Jupiter/pull/42)
 
 ### 2017-12-19: version 1.2.14

@@ -14,34 +14,23 @@
  * limitations under the License.
  */
 
-package org.jupiter.rpc;
+package org.jupiter.example.spring.flow;
 
-import org.jupiter.transport.channel.JChannel;
+import org.jupiter.rpc.JRequest;
+import org.jupiter.rpc.flow.control.ControlResult;
+import org.jupiter.rpc.flow.control.FlowController;
 
 /**
- * Consumer's hook.
- *
- * 客户端的钩子函数.
- *
- * 在请求发送时触发 {@link #before(JRequest, JChannel)} 方法;
- * 在响应回来时触发 {@link #after(JResponse, JChannel)} 方法.
- *
  * jupiter
- * org.jupiter.rpc
+ * org.jupiter.example.spring.flow
  *
  * @author jiachun.fjc
  */
-public interface ConsumerHook {
+public class MyFlowController implements FlowController<JRequest> {
 
-    ConsumerHook[] EMPTY_HOOKS = new ConsumerHook[0];
-
-    /**
-     * Triggered when the request data sent to the network.
-     */
-    void before(JRequest request, JChannel channel);
-
-    /**
-     * Triggered when the server returns the result.
-     */
-    void after(JResponse response, JChannel channel);
+    @Override
+    public ControlResult flowControl(JRequest request) {
+        System.out.println("OK");
+        return ControlResult.ALLOWED;
+    }
 }

@@ -21,10 +21,7 @@ import org.jupiter.monitor.MonitorServer;
 import org.jupiter.rpc.DefaultServer;
 import org.jupiter.rpc.JServer;
 import org.jupiter.transport.JOption;
-import org.jupiter.transport.netty.AffinityNettyThreadFactory;
 import org.jupiter.transport.netty.JNettyTcpAcceptor;
-
-import java.util.concurrent.ThreadFactory;
 
 /**
  * 飞行记录: -XX:+UnlockCommercialFeatures -XX:+FlightRecorder
@@ -51,16 +48,20 @@ public class BenchmarkServer {
         SystemPropertyUtil
                 .setProperty("jupiter.executor.factory.affinity.thread", "true");
 
-        JServer server = new DefaultServer().withAcceptor(new JNettyTcpAcceptor(18099, true) {
+        // 设置全局provider executor
+        SystemPropertyUtil
+                .setProperty("jupiter.executor.factory.provider.factory_name", "threadPool");
 
-            @Override
-            protected ThreadFactory workerThreadFactory(String name) {
-                return new AffinityNettyThreadFactory(name, Thread.MAX_PRIORITY);
-            }
+        final JServer server = new DefaultServer().withAcceptor(new JNettyTcpAcceptor(18099, processors, true) {
+
+//            @Override
+//            protected ThreadFactory workerThreadFactory(String name) {
+//                return new AffinityNettyThreadFactory(name, Thread.MAX_PRIORITY);
+//            }
         });
         server.acceptor().configGroup().child().setOption(JOption.WRITE_BUFFER_HIGH_WATER_MARK, 256 * 1024);
         server.acceptor().configGroup().child().setOption(JOption.WRITE_BUFFER_LOW_WATER_MARK, 128 * 1024);
-        MonitorServer monitor = new MonitorServer();
+        final MonitorServer monitor = new MonitorServer();
         try {
             monitor.start();
 

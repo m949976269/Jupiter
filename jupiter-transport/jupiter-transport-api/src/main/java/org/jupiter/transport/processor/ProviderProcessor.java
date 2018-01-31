@@ -39,4 +39,6 @@ public interface ProviderProcessor {
      * 处理异常
      */
     void handleException(JChannel channel, JRequestBytes request, Status status, Throwable cause);
+
+    void shutdown();
 }

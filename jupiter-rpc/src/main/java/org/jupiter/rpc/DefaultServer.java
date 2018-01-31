@@ -16,7 +16,6 @@
 
 package org.jupiter.rpc;
 
-import org.jupiter.common.concurrent.NamedThreadFactory;
 import org.jupiter.common.util.*;
 import org.jupiter.common.util.internal.logging.InternalLogger;
 import org.jupiter.common.util.internal.logging.InternalLoggerFactory;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 import static org.jupiter.common.util.Preconditions.checkArgument;
 import static org.jupiter.common.util.Preconditions.checkNotNull;
@@ -59,10 +57,6 @@ public class DefaultServer implements JServer {
         // because getLocalAddress() and getPid() sometimes too slow
         ClassUtil.classInitialize("org.jupiter.rpc.tracing.TracingUtil", 500);
     }
-
-    // 服务延迟初始化的默认线程池
-    private final Executor defaultInitializerExecutor =
-            Executors.newSingleThreadExecutor(new NamedThreadFactory("initializer"));
 
     // provider本地容器
     private final ServiceProviderContainer providerContainer = new DefaultServiceProviderContainer();
@@ -93,7 +87,9 @@ public class DefaultServer implements JServer {
 
     @Override
     public JServer withAcceptor(JAcceptor acceptor) {
-        acceptor.withProcessor(new DefaultProviderProcessor(this));
+        if (acceptor.processor() == null) {
+            acceptor.withProcessor(new DefaultProviderProcessor(this));
+        }
         this.acceptor = acceptor;
         return this;
     }
@@ -166,11 +162,6 @@ public class DefaultServer implements JServer {
     }
 
     @Override
-    public <T> void publishWithInitializer(ServiceWrapper serviceWrapper, ProviderInitializer<T> initializer) {
-        publishWithInitializer(serviceWrapper, initializer, null);
-    }
-
-    @Override
     public <T> void publishWithInitializer(
             final ServiceWrapper serviceWrapper, final ProviderInitializer<T> initializer, Executor executor) {
         Runnable task = new Runnable() {
@@ -186,8 +177,9 @@ public class DefaultServer implements JServer {
                 }
             }
         };
+
         if (executor == null) {
-            defaultInitializerExecutor.execute(task);
+            task.run();
         } else {
             executor.execute(task);
         }
@@ -470,9 +462,7 @@ public class DefaultServer implements JServer {
         public void registerService(String uniqueKey, ServiceWrapper serviceWrapper) {
             serviceProviders.put(uniqueKey, serviceWrapper);
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("ServiceProvider [{}, {}] is registered.", uniqueKey, serviceWrapper.getServiceProvider());
-            }
+            logger.info("ServiceProvider [{}, {}] is registered.", uniqueKey, serviceWrapper);
         }
 
         @Override
@@ -482,15 +472,13 @@ public class DefaultServer implements JServer {
 
         @Override
         public ServiceWrapper removeService(String uniqueKey) {
-            ServiceWrapper provider = serviceProviders.remove(uniqueKey);
-            if (provider == null) {
+            ServiceWrapper serviceWrapper = serviceProviders.remove(uniqueKey);
+            if (serviceWrapper == null) {
                 logger.warn("ServiceProvider [{}] not found.", uniqueKey);
             } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("ServiceProvider [{}, {}] is removed.", uniqueKey, provider.getServiceProvider());
-                }
+                logger.info("ServiceProvider [{}, {}] is removed.", uniqueKey, serviceWrapper);
             }
-            return provider;
+            return serviceWrapper;
         }
 
         @Override

@@ -72,6 +72,8 @@ public abstract class NettyConnector implements JConnector<JConnection> {
     private EventLoopGroup worker;
     private int nWorkers;
 
+    private ConsumerProcessor processor;
+
     protected volatile ByteBufAllocator allocator;
 
     public NettyConnector(Protocol protocol) {
@@ -109,8 +111,13 @@ public abstract class NettyConnector implements JConnector<JConnection> {
     }
 
     @Override
+    public ConsumerProcessor processor() {
+        return processor;
+    }
+
+    @Override
     public void withProcessor(ConsumerProcessor processor) {
-        // the default implementation does nothing
+        setProcessor(this.processor = processor);
     }
 
     @Override
@@ -138,7 +145,9 @@ public abstract class NettyConnector implements JConnector<JConnection> {
         CopyOnWriteGroupList groups = directory(directory);
         boolean added = groups.addIfAbsent(group);
         if (added) {
-            logger.info("Added channel group: {} to {}.", group, directory.directory());
+            if (logger.isInfoEnabled()) {
+                logger.info("Added channel group: {} to {}.", group, directory.directory());
+            }
         }
         return added;
     }
@@ -148,7 +157,9 @@ public abstract class NettyConnector implements JConnector<JConnection> {
         CopyOnWriteGroupList groups = directory(directory);
         boolean removed = groups.remove(group);
         if (removed) {
-            logger.warn("Removed channel group: {} in directory: {}.", group, directory.directory());
+            if (logger.isWarnEnabled()) {
+                logger.warn("Removed channel group: {} in directory: {}.", group, directory.directory());
+            }
         }
         return removed;
     }
@@ -183,7 +194,11 @@ public abstract class NettyConnector implements JConnector<JConnection> {
     @Override
     public void shutdownGracefully() {
         connectionManager.cancelAllReconnect();
-        worker.shutdownGracefully();
+        worker.shutdownGracefully().syncUninterruptibly();
+        timer.stop();
+        if (processor != null) {
+            processor.shutdown();
+        }
     }
 
     protected void setOptions() {
@@ -237,6 +252,14 @@ public abstract class NettyConnector implements JConnector<JConnection> {
      */
     protected JChannelGroup channelGroup(UnresolvedAddress address) {
         return new NettyChannelGroup(address);
+    }
+
+    /**
+     * Sets consumer's processor.
+     */
+    @SuppressWarnings("unused")
+    protected void setProcessor(ConsumerProcessor processor) {
+        // the default implementation does nothing
     }
 
     /**

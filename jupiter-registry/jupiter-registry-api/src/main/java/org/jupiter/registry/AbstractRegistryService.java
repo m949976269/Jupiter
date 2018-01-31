@@ -76,6 +76,8 @@ public abstract class AbstractRegistryService implements RegistryService {
                         meta = queue.take();
                         registerMetaMap.put(meta, RegisterState.PREPARE);
                         doRegister(meta);
+                    } catch (InterruptedException e) {
+                        logger.warn("[register.executor] interrupted.");
                     } catch (Throwable t) {
                         if (meta != null) {
                             logger.error("Register [{}] fail: {}, will try again...", meta.getServiceMeta(), stackTrace(t));
@@ -103,6 +105,8 @@ public abstract class AbstractRegistryService implements RegistryService {
                     try {
                         Thread.sleep(3000);
                         doCheckRegisterNodeStatus();
+                    } catch (InterruptedException e) {
+                        logger.warn("[local.register.watch.executor] interrupted.");
                     } catch (Throwable t) {
                         if (logger.isWarnEnabled()) {
                             logger.warn("Check register node status fail: {}, will try again...", stackTrace(t));
@@ -188,11 +192,15 @@ public abstract class AbstractRegistryService implements RegistryService {
     @Override
     public void shutdownGracefully() {
         if (!shutdown.getAndSet(true)) {
-            registerExecutor.shutdown();
-            localRegisterWatchExecutor.shutdown();
             try {
+                registerExecutor.shutdownNow();
+                registerScheduledExecutor.shutdownNow();
+                localRegisterWatchExecutor.shutdownNow();
+            } catch (Exception e) {
+                logger.error("failed to shutdown: {}.", stackTrace(e));
+            } finally {
                 destroy();
-            } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -239,10 +247,13 @@ public abstract class AbstractRegistryService implements RegistryService {
 
         boolean notifyNeeded = false;
 
+        // segment-lock
         final Lock writeLock = value.lock.writeLock();
         writeLock.lock();
         try {
-            if (version > value.version) {
+            long lastVersion = value.version;
+            if (version > lastVersion
+                    || (version < 0 && lastVersion > 0 /* version overflow */)) {
                 if (event == NotifyListener.NotifyEvent.CHILD_REMOVED) {
                     for (RegisterMeta m : array) {
                         value.metaSet.remove(m);
@@ -288,6 +299,6 @@ public abstract class AbstractRegistryService implements RegistryService {
     protected static class RegisterValue {
         private long version = Long.MIN_VALUE;
         private final Set<RegisterMeta> metaSet = new HashSet<>();
-        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(); // segment-lock
     }
 }
