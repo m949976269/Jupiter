@@ -224,7 +224,7 @@ public class NettyChannelGroup implements JChannelGroup {
     }
 
     @Override
-    public void setWeight(Directory directory, int weight) {
+    public void putWeight(Directory directory, int weight) {
         checkNotNull(directory, "directory");
 
         if (weight == JConstants.DEFAULT_WEIGHT) {
@@ -253,7 +253,7 @@ public class NettyChannelGroup implements JChannelGroup {
 
     @Override
     public boolean isWarmUpComplete() {
-        return SystemClock.millisClock().now() - timestamp - warmUp > 0;
+        return SystemClock.millisClock().now() - timestamp > warmUp;
     }
 
     @Override

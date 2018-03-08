@@ -17,8 +17,11 @@
 package org.jupiter.spring.support;
 
 import org.jupiter.common.util.ExceptionUtil;
+import org.jupiter.common.util.Pair;
 import org.jupiter.common.util.Strings;
 import org.jupiter.common.util.SystemPropertyUtil;
+import org.jupiter.common.util.internal.logging.InternalLogger;
+import org.jupiter.common.util.internal.logging.InternalLoggerFactory;
 import org.jupiter.registry.RegistryService;
 import org.jupiter.rpc.DefaultServer;
 import org.jupiter.rpc.JRequest;
@@ -26,7 +29,12 @@ import org.jupiter.rpc.JServer;
 import org.jupiter.rpc.flow.control.FlowController;
 import org.jupiter.rpc.provider.ProviderInterceptor;
 import org.jupiter.transport.JAcceptor;
+import org.jupiter.transport.JConfig;
+import org.jupiter.transport.JConfigGroup;
+import org.jupiter.transport.JOption;
 import org.springframework.beans.factory.InitializingBean;
+
+import java.util.List;
 
 import static org.jupiter.common.util.Preconditions.checkNotNull;
 
@@ -40,14 +48,18 @@ import static org.jupiter.common.util.Preconditions.checkNotNull;
  */
 public class JupiterSpringServer implements InitializingBean {
 
+    private static final InternalLogger logger = InternalLoggerFactory.getInstance(JupiterSpringServer.class);
+
     private JServer server;
     private RegistryService.RegistryType registryType;
     private JAcceptor acceptor;
 
-    private String registryServerAddresses;                     // 注册中心地址 [host1:port1,host2:port2....]
-    private boolean hasRegistryServer;                          // true: 需要连接注册中心; false: IP直连方式
-    private ProviderInterceptor[] globalProviderInterceptors;   // 全局拦截器
-    private FlowController<JRequest> globalFlowController;      // 全局流量控制
+    private List<Pair<JOption<Object>, String>> parentNetOptions;   // 网络层配置选项
+    private List<Pair<JOption<Object>, String>> childNetOptions;    // 网络层配置选项
+    private String registryServerAddresses;                         // 注册中心地址 [host1:port1,host2:port2....]
+    private boolean hasRegistryServer;                              // true: 需要连接注册中心; false: IP直连方式
+    private ProviderInterceptor[] globalProviderInterceptors;       // 全局拦截器
+    private FlowController<JRequest> globalFlowController;          // 全局流量控制
 
     @Override
     public void afterPropertiesSet() throws Exception {
@@ -60,6 +72,23 @@ public class JupiterSpringServer implements InitializingBean {
             acceptor = createDefaultAcceptor();
         }
         server.withAcceptor(acceptor);
+
+        // 网络层配置
+        JConfigGroup configGroup = acceptor.configGroup();
+        if (parentNetOptions != null && !parentNetOptions.isEmpty()) {
+            JConfig parent = configGroup.parent();
+            for (Pair<JOption<Object>, String> config : parentNetOptions) {
+                parent.setOption(config.getFirst(), config.getSecond());
+                logger.info("Setting parent net option: {}", config);
+            }
+        }
+        if (childNetOptions != null && !childNetOptions.isEmpty()) {
+            JConfig child = configGroup.child();
+            for (Pair<JOption<Object>, String> config : childNetOptions) {
+                child.setOption(config.getFirst(), config.getSecond());
+                logger.info("Setting child net option: {}", config);
+            }
+        }
 
         // 注册中心
         if (Strings.isNotBlank(registryServerAddresses)) {
@@ -112,6 +141,22 @@ public class JupiterSpringServer implements InitializingBean {
 
     public void setAcceptor(JAcceptor acceptor) {
         this.acceptor = acceptor;
+    }
+
+    public List<Pair<JOption<Object>, String>> getParentNetOptions() {
+        return parentNetOptions;
+    }
+
+    public void setParentNetOptions(List<Pair<JOption<Object>, String>> parentNetOptions) {
+        this.parentNetOptions = parentNetOptions;
+    }
+
+    public List<Pair<JOption<Object>, String>> getChildNetOptions() {
+        return childNetOptions;
+    }
+
+    public void setChildNetOptions(List<Pair<JOption<Object>, String>> childNetOptions) {
+        this.childNetOptions = childNetOptions;
     }
 
     public String getRegistryServerAddresses() {

@@ -16,13 +16,13 @@
 
 package org.jupiter.example.round;
 
+import org.jupiter.common.util.SystemPropertyUtil;
 import org.jupiter.example.ServiceTest;
 import org.jupiter.example.ServiceTest2;
 import org.jupiter.monitor.MonitorServer;
 import org.jupiter.rpc.DefaultClient;
 import org.jupiter.rpc.JClient;
 import org.jupiter.rpc.consumer.ProxyFactory;
-import org.jupiter.rpc.consumer.cluster.ClusterInvoker;
 import org.jupiter.serialization.SerializerType;
 import org.jupiter.transport.JConnector;
 import org.jupiter.transport.exception.ConnectFailedException;
@@ -37,6 +37,9 @@ import org.jupiter.transport.netty.JNettyTcpConnector;
 public class SyncJupiterClient {
 
     public static void main(String[] args) {
+        SystemPropertyUtil.setProperty("jupiter.transport.decode.low_copy", "true");
+        SystemPropertyUtil.setProperty("jupiter.transport.encode.low_copy", "true");
+
         final JClient client = new DefaultClient().withConnector(new JNettyTcpConnector());
         final MonitorServer monitor = new MonitorServer(19991);
         monitor.setJupiterClient(client);
@@ -69,18 +72,32 @@ public class SyncJupiterClient {
         ServiceTest service1 = ProxyFactory.factory(ServiceTest.class)
                 .version("1.0.0.daily")
                 .client(client)
-                .serializerType(SerializerType.JAVA)
-                .clusterStrategy(ClusterInvoker.Strategy.FAIL_OVER)
+                .serializerType(SerializerType.PROTO_STUFF)
                 .failoverRetries(5)
                 .newProxyInstance();
 
         ServiceTest2 service2 = ProxyFactory.factory(ServiceTest2.class)
                 .version("1.0.0.daily")
                 .client(client)
+                .serializerType(SerializerType.PROTO_STUFF)
                 .newProxyInstance();
 
         try {
             ServiceTest.ResultClass result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
+            System.out.println(result1);
+            result1 = service1.sayHello("jupiter", "hello");
             System.out.println(result1);
 
             String result2 = service2.sayHelloString();

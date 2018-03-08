@@ -16,17 +16,14 @@
 
 package org.jupiter.spring.support;
 
-import org.jupiter.common.util.ExceptionUtil;
-import org.jupiter.common.util.Lists;
-import org.jupiter.common.util.Strings;
-import org.jupiter.common.util.SystemPropertyUtil;
+import org.jupiter.common.util.*;
+import org.jupiter.common.util.internal.logging.InternalLogger;
+import org.jupiter.common.util.internal.logging.InternalLoggerFactory;
 import org.jupiter.registry.RegistryService;
 import org.jupiter.rpc.DefaultClient;
 import org.jupiter.rpc.JClient;
 import org.jupiter.rpc.consumer.ConsumerInterceptor;
-import org.jupiter.transport.JConnection;
-import org.jupiter.transport.JConnector;
-import org.jupiter.transport.UnresolvedAddress;
+import org.jupiter.transport.*;
 import org.springframework.beans.factory.InitializingBean;
 
 import java.util.Collections;
@@ -44,11 +41,14 @@ import static org.jupiter.common.util.Preconditions.checkNotNull;
  */
 public class JupiterSpringClient implements InitializingBean {
 
+    private static final InternalLogger logger = InternalLoggerFactory.getInstance(JupiterSpringClient.class);
+
     private JClient client;
     private String appName;
     private RegistryService.RegistryType registryType;
     private JConnector<JConnection> connector;
 
+    private List<Pair<JOption<Object>, String>> childNetOptions;        // 网络层配置选项
     private String registryServerAddresses;                             // 注册中心地址 [host1:port1,host2:port2....]
     private String providerServerAddresses;                             // IP直连到providers [host1:port1,host2:port2....]
     private List<UnresolvedAddress> providerServerUnresolvedAddresses;  // IP直连的地址列表
@@ -66,6 +66,15 @@ public class JupiterSpringClient implements InitializingBean {
             connector = createDefaultConnector();
         }
         client.withConnector(connector);
+
+        // 网络层配置
+        if (childNetOptions != null && !childNetOptions.isEmpty()) {
+            JConfig child = connector.config();
+            for (Pair<JOption<Object>, String> config : childNetOptions) {
+                child.setOption(config.getFirst(), config.getSecond());
+                logger.info("Setting child net option: {}", config);
+            }
+        }
 
         // 注册中心
         if (Strings.isNotBlank(registryServerAddresses)) {
@@ -131,6 +140,14 @@ public class JupiterSpringClient implements InitializingBean {
 
     public void setConnector(JConnector<JConnection> connector) {
         this.connector = connector;
+    }
+
+    public List<Pair<JOption<Object>, String>> getChildNetOptions() {
+        return childNetOptions;
+    }
+
+    public void setChildNetOptions(List<Pair<JOption<Object>, String>> childNetOptions) {
+        this.childNetOptions = childNetOptions;
     }
 
     public String getRegistryServerAddresses() {

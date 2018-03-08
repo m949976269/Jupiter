@@ -152,7 +152,7 @@ public class DefaultClient implements JClient {
                             } else {
                                 onSucceed(group, signalNeeded.getAndSet(false));
                             }
-                            group.setWeight(directory, registerMeta.getWeight()); // 设置权重
+                            group.putWeight(directory, registerMeta.getWeight()); // 设置权重
                         } else if (event == NotifyEvent.CHILD_REMOVED) {
                             connector.removeChannelGroup(directory, group);
                             group.removeWeight(directory);
@@ -172,18 +172,18 @@ public class DefaultClient implements JClient {
                             JConnection connection = connector.connect(address, async);
                             connections[i] = connection;
                             connectionManager.manage(connection);
-
-                            offlineListening(address, new OfflineListener() {
-
-                                @Override
-                                public void offline() {
-                                    connectionManager.cancelReconnect(address); // 取消自动重连
-                                    if (!group.isAvailable()) {
-                                        connector.removeChannelGroup(directory, group);
-                                    }
-                                }
-                            });
                         }
+
+                        offlineListening(address, new OfflineListener() {
+
+                            @Override
+                            public void offline() {
+                                connectionManager.cancelReconnect(address); // 取消自动重连
+                                if (!group.isAvailable()) {
+                                    connector.removeChannelGroup(directory, group);
+                                }
+                            }
+                        });
 
                         return connections;
                     }

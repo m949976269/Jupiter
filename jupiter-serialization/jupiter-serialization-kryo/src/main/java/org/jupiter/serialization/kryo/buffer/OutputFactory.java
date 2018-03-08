@@ -14,35 +14,22 @@
  * limitations under the License.
  */
 
-package org.jupiter.transport.payload;
+package org.jupiter.serialization.kryo.buffer;
+
+import com.esotericsoftware.kryo.io.Output;
+import org.jupiter.serialization.OutputBuf;
 
 /**
- * 响应的消息体bytes载体, 避免在IO线程中序列化/反序列化, jupiter-transport这一层不关注消息体的对象结构.
- *
  * jupiter
- * org.jupiter.transport.payload
+ * org.jupiter.serialization.kryo.buffer
  *
  * @author jiachun.fjc
  */
-public class JResponseBytes extends BytesHolder {
+public final class OutputFactory {
 
-    // 用于映射 <id, request, response> 三元组
-    private final long id; // request.invokeId
-    private byte status;
-
-    public JResponseBytes(long id) {
-        this.id = id;
+    public static Output getOutput(OutputBuf outputBuf) {
+        return new NioBufOutput(outputBuf, -1);
     }
 
-    public long id() {
-        return id;
-    }
-
-    public byte status() {
-        return status;
-    }
-
-    public void status(byte status) {
-        this.status = status;
-    }
+    private OutputFactory() {}
 }

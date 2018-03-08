@@ -1,14 +1,23 @@
 Jupiter release notes
 ------------------------
+### 2018-02-14: version 1.2.18.Beta
 
-### 2018-01-31: version 1.2.17.Beta
+- [优化序列化/反序列化过程中的memory-copy](https://github.com/fengjiachun/Jupiter/issues/51)
+
+### 2018-02-07: version 1.2.17
+
+- Bug fix: [jupiter-all没引入opentracing](https://github.com/fengjiachun/Jupiter/issues/52)
+- 删除没必要的ProtoStuffSerializer的外层schema缓存
+- Bug fix: [AbstractFuture isDone 的问题](https://github.com/fengjiachun/Jupiter/issues/55)
+- Enhancement: [日志信息缺少关键的错误地址信息](https://github.com/fengjiachun/Jupiter/issues/54)
+- Update [protostuff](https://github.com/protostuff/protostuff) version: 1.5.2 --> 1.6.0
+- [Spring环境中开放JOption参数配置](https://github.com/fengjiachun/Jupiter/issues/50)
 - Add [Sequence 序号生成器](/jupiter-common/src/main/java/org/jupiter/common/util/Sequence.java)
 - Bug fix: ProviderInterceptor 参数 {Object result, Throwable failCause} 始终为null
 - Bug fix: Spring schema 数组属性注入失败
 - Add JupiterSpringClient#ConsumerInterceptor[] consumer端全局拦截器
 - ConsumerHook --> ConsumerInterceptor
 - Update [open-tracing](https://github.com/opentracing/opentracing-java) version: 0.31.0-RC1 --> 0.31.0
-- Update [netty](https://github.com/netty/netty) version: 4.1.19.Final --> 4.1.20.Final
 - Update [metrics-core](https://github.com/dropwizard/metrics) version: 3.1.2 --> 4.0.2
 - Update [affinity](https://github.com/OpenHFT/Java-Thread-Affinity) version: 3.0.6 --> 3.1.7
 - Update [asm](http://asm.ow2.org) version: 5.2 --> 6.0

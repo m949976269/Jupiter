@@ -17,6 +17,7 @@
 package org.jupiter.spring.schema;
 
 import org.jupiter.common.util.Lists;
+import org.jupiter.common.util.Pair;
 import org.jupiter.common.util.Strings;
 import org.jupiter.rpc.consumer.ConsumerInterceptor;
 import org.jupiter.rpc.model.metadata.ClusterStrategyConfig;
@@ -26,6 +27,7 @@ import org.jupiter.spring.support.JupiterSpringClient;
 import org.jupiter.spring.support.JupiterSpringConsumerBean;
 import org.jupiter.spring.support.JupiterSpringProviderBean;
 import org.jupiter.spring.support.JupiterSpringServer;
+import org.jupiter.transport.JOption;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
 import org.springframework.beans.factory.config.RuntimeBeanReference;
@@ -77,6 +79,9 @@ public class JupiterBeanDefinitionParser implements BeanDefinitionParser {
         addProperty(def, element, "registryType", false);
         addPropertyReference(def, element, "acceptor", false);
 
+        List<Pair<JOption<Object>, String>> parentOptions = Lists.newArrayList();
+        List<Pair<JOption<Object>, String>> childOptions = Lists.newArrayList();
+
         NodeList childNodes = element.getChildNodes();
         for (int i = 0; i < childNodes.getLength(); i++) {
             Node item = childNodes.item(i);
@@ -91,8 +96,24 @@ public class JupiterBeanDefinitionParser implements BeanDefinitionParser {
                             "globalProviderInterceptors",
                             false);
                     addPropertyReference(def, (Element) item, "globalFlowController", false);
+                } else if ("netOptions".equals(localName)) {
+                    NodeList configList = item.getChildNodes();
+                    for (int j = 0; j < configList.getLength(); j++) {
+                        Node configItem = configList.item(j);
+                        if (configItem instanceof Element) {
+                            parseNetOption(configItem, parentOptions, childOptions);
+                        }
+                    }
                 }
             }
+        }
+
+        if (!parentOptions.isEmpty()) {
+            def.getPropertyValues().addPropertyValue("parentNetOptions", parentOptions);
+        }
+
+        if (!childOptions.isEmpty()) {
+            def.getPropertyValues().addPropertyValue("childNetOptions", childOptions);
         }
 
         return registerBean(def, element, parserContext);
@@ -105,6 +126,8 @@ public class JupiterBeanDefinitionParser implements BeanDefinitionParser {
         addProperty(def, element, "appName", false);
         addProperty(def, element, "registryType", false);
         addPropertyReference(def, element, "connector", false);
+
+        List<Pair<JOption<Object>, String>> childOptions = Lists.newArrayList();
 
         NodeList childNodes = element.getChildNodes();
         for (int i = 0; i < childNodes.getLength(); i++) {
@@ -120,8 +143,20 @@ public class JupiterBeanDefinitionParser implements BeanDefinitionParser {
                             ConsumerInterceptor.class.getName(),
                             "globalConsumerInterceptors",
                             false);
+                } else if ("netOptions".equals(localName)) {
+                    NodeList configList = item.getChildNodes();
+                    for (int j = 0; j < configList.getLength(); j++) {
+                        Node configItem = configList.item(j);
+                        if (configItem instanceof Element) {
+                            parseNetOption(configItem, null, childOptions);
+                        }
+                    }
                 }
             }
+        }
+
+        if (!childOptions.isEmpty()) {
+            def.getPropertyValues().addPropertyValue("childNetOptions", childOptions);
         }
 
         return registerBean(def, element, parserContext);
@@ -216,6 +251,29 @@ public class JupiterBeanDefinitionParser implements BeanDefinitionParser {
         }
 
         return registerBean(def, element, parserContext);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void parseNetOption(
+            Node configItem, List<Pair<JOption<Object>, String>> parentOptions, List<Pair<JOption<Object>, String>> childOptions) {
+
+        String localName = configItem.getLocalName();
+
+        if ("parentOption".equals(localName) && parentOptions != null) {
+            for (JOption<?> op : JOption.ALL_OPTIONS) {
+                String value = ((Element) configItem).getAttribute(op.name());
+                if (Strings.isNotBlank(value)) {
+                    parentOptions.add(Pair.of((JOption<Object>) op, value));
+                }
+            }
+        } else if ("childOption".equals(localName) && childOptions != null) {
+            for (JOption<?> op : JOption.ALL_OPTIONS) {
+                String value = ((Element) configItem).getAttribute(op.name());
+                if (Strings.isNotBlank(value)) {
+                    childOptions.add(Pair.of((JOption<Object>) op, value));
+                }
+            }
+        }
     }
 
     private BeanDefinition registerBean(RootBeanDefinition definition, Element element, ParserContext parserContext) {
