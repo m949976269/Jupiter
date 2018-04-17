@@ -16,7 +16,7 @@
 
 package org.jupiter.common.util;
 
-import org.jupiter.common.util.internal.JUnsafe;
+import org.jupiter.common.util.internal.UnsafeUtil;
 import org.jupiter.common.util.internal.UnsafeReferenceFieldUpdater;
 import org.jupiter.common.util.internal.UnsafeUpdater;
 import sun.misc.Unsafe;
@@ -27,7 +27,7 @@ import sun.misc.Unsafe;
  *
  * @author jiachun.fjc
  */
-public class ExceptionUtil {
+public final class ThrowUtil {
 
     private static final UnsafeReferenceFieldUpdater<Throwable, Throwable> causeUpdater =
             UnsafeUpdater.newReferenceFieldUpdater(Throwable.class, "cause");
@@ -36,11 +36,11 @@ public class ExceptionUtil {
      * Raises an exception bypassing compiler checks for checked exceptions.
      */
     public static void throwException(Throwable t) {
-        Unsafe unsafe = JUnsafe.getUnsafe();
+        Unsafe unsafe = UnsafeUtil.getUnsafe();
         if (unsafe != null) {
             unsafe.throwException(t);
         } else {
-            ExceptionUtil.<RuntimeException>throwException0(t);
+            ThrowUtil.<RuntimeException>throwException0(t);
         }
     }
 
@@ -77,5 +77,5 @@ public class ExceptionUtil {
         return cause;
     }
 
-    private ExceptionUtil() {}
+    private ThrowUtil() {}
 }

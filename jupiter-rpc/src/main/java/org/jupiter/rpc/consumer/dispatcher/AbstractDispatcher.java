@@ -29,6 +29,7 @@ import org.jupiter.rpc.consumer.ConsumerInterceptor;
 import org.jupiter.rpc.consumer.future.DefaultInvokeFuture;
 import org.jupiter.rpc.exception.JupiterRemoteException;
 import org.jupiter.rpc.load.balance.LoadBalancer;
+import org.jupiter.rpc.model.metadata.MessageWrapper;
 import org.jupiter.rpc.model.metadata.MethodSpecialConfig;
 import org.jupiter.rpc.model.metadata.ResultWrapper;
 import org.jupiter.rpc.model.metadata.ServiceMetadata;
@@ -113,7 +114,7 @@ abstract class AbstractDispatcher implements Dispatcher {
         return this;
     }
 
-    public long getMethodSpecialTimeoutMillis(String methodName) {
+    protected long getMethodSpecialTimeoutMillis(String methodName) {
         Long methodTimeoutMillis = methodSpecialTimeoutMapping.get(methodName);
         if (methodTimeoutMillis != null && methodTimeoutMillis > 0) {
             return methodTimeoutMillis;
@@ -139,40 +140,46 @@ abstract class AbstractDispatcher implements Dispatcher {
                 if (removed) {
                     if (logger.isWarnEnabled()) {
                         logger.warn("Removed channel group: {} in directory: {} on [select].",
-                                group, metadata.directory());
+                                group, metadata.directoryString());
                     }
                 }
             }
         } else {
             // for 3 seconds, expired not wait
             if (!client.awaitConnections(metadata, 3000)) {
-                throw new IllegalStateException("no connections");
+                throw new IllegalStateException("No connections");
             }
         }
 
-        JChannelGroup[] snapshot = groups.snapshot();
+        JChannelGroup[] snapshot = groups.getSnapshot();
         for (JChannelGroup g : snapshot) {
             if (g.isAvailable()) {
                 return g.next();
             }
         }
 
-        throw new IllegalStateException("no channel");
+        throw new IllegalStateException("No channel");
     }
 
     protected JChannelGroup[] groups(ServiceMetadata metadata) {
         return client.connector()
                 .directory(metadata)
-                .snapshot();
+                .getSnapshot();
     }
 
     @SuppressWarnings("all")
-    protected static <T> DefaultInvokeFuture<T> write(
-            JChannel channel, final JRequest request, final DefaultInvokeFuture<T> future, final DispatchType dispatchType) {
+    protected <T> DefaultInvokeFuture<T> write(
+            final JChannel channel, final JRequest request, final Class<T> returnType, final DispatchType dispatchType) {
+        final MessageWrapper message = request.message();
+        final long timeoutMillis = getMethodSpecialTimeoutMillis(message.getMethodName());
+        final ConsumerInterceptor[] interceptors = interceptors();
+        final TraceId traceId = message.getTraceId();
+        final DefaultInvokeFuture<T> future = DefaultInvokeFuture
+                .with(request.invokeId(), channel, timeoutMillis, returnType, dispatchType)
+                .interceptors(interceptors)
+                .traceId(traceId);
 
-        ConsumerInterceptor[] interceptors = future.interceptors();
         if (interceptors != null) {
-            TraceId traceId = future.traceId();
             for (int i = 0; i < interceptors.length; i++) {
                 interceptors[i].beforeInvoke(traceId, request, channel);
             }

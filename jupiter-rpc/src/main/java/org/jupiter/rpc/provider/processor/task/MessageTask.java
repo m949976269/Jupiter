@@ -33,13 +33,13 @@ import org.jupiter.rpc.model.metadata.MessageWrapper;
 import org.jupiter.rpc.model.metadata.ResultWrapper;
 import org.jupiter.rpc.model.metadata.ServiceWrapper;
 import org.jupiter.rpc.provider.ProviderInterceptor;
-import org.jupiter.rpc.provider.processor.AbstractProviderProcessor;
+import org.jupiter.rpc.provider.processor.DefaultProviderProcessor;
 import org.jupiter.rpc.tracing.TraceId;
 import org.jupiter.rpc.tracing.TracingUtil;
-import org.jupiter.serialization.InputBuf;
-import org.jupiter.serialization.OutputBuf;
 import org.jupiter.serialization.Serializer;
 import org.jupiter.serialization.SerializerFactory;
+import org.jupiter.serialization.io.InputBuf;
+import org.jupiter.serialization.io.OutputBuf;
 import org.jupiter.transport.CodecConfig;
 import org.jupiter.transport.Status;
 import org.jupiter.transport.channel.JChannel;
@@ -72,11 +72,11 @@ public class MessageTask implements RejectedRunnable {
     private static final UnsafeIntegerFieldUpdater<TraceId> traceNodeUpdater =
             UnsafeUpdater.newIntegerFieldUpdater(TraceId.class, "node");
 
-    private final AbstractProviderProcessor processor;
+    private final DefaultProviderProcessor processor;
     private final JChannel channel;
     private final JRequest request;
 
-    public MessageTask(AbstractProviderProcessor processor, JChannel channel, JRequest request) {
+    public MessageTask(DefaultProviderProcessor processor, JChannel channel, JRequest request) {
         this.processor = processor;
         this.channel = channel;
         this.request = request;
@@ -85,7 +85,7 @@ public class MessageTask implements RejectedRunnable {
     @Override
     public void run() {
         // stack copy
-        final AbstractProviderProcessor _processor = processor;
+        final DefaultProviderProcessor _processor = processor;
         final JRequest _request = request;
 
         // 全局流量控制
@@ -103,7 +103,7 @@ public class MessageTask implements RejectedRunnable {
             Serializer serializer = SerializerFactory.getSerializer(s_code);
 
             // 在业务线程中反序列化, 减轻IO线程负担
-            if (CodecConfig.isDecodeLowCopy()) {
+            if (CodecConfig.isCodecLowCopy()) {
                 InputBuf inputBuf = _requestPayload.inputBuf();
                 msg = serializer.readObject(inputBuf, MessageWrapper.class);
             } else {
@@ -114,7 +114,7 @@ public class MessageTask implements RejectedRunnable {
 
             _request.message(msg);
         } catch (Throwable t) {
-            rejected(Status.BAD_REQUEST, new JupiterBadRequestException(t.getMessage()));
+            rejected(Status.BAD_REQUEST, new JupiterBadRequestException("reading request failed", t));
             return;
         }
 
@@ -188,7 +188,7 @@ public class MessageTask implements RejectedRunnable {
 
             JResponsePayload responsePayload = new JResponsePayload(_request.invokeId());
 
-            if (CodecConfig.isEncodeLowCopy()) {
+            if (CodecConfig.isCodecLowCopy()) {
                 OutputBuf outputBuf =
                         serializer.writeObject(channel.allocOutputBuf(), result);
                 responsePayload.outputBuf(s_code, outputBuf);

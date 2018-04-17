@@ -88,6 +88,14 @@ public class ChannelGroup implements JChannelGroup {
     }
 
     @Override
+    public boolean isConnecting() {
+        return false;
+    }
+
+    @Override
+    public void setConnecting(boolean connecting) {}
+
+    @Override
     public boolean isAvailable() {
         return false;
     }
@@ -98,8 +106,11 @@ public class ChannelGroup implements JChannelGroup {
     }
 
     @Override
+    public void onAvailable(Runnable callback) {}
+
+    @Override
     public int getWeight(Directory directory) {
-        return 0;
+        return weight;
     }
 
     @Override

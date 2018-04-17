@@ -30,9 +30,9 @@ import java.util.List;
  */
 public class AdaptiveOutputBufAllocator {
 
-    static final int DEFAULT_MINIMUM = 64;
-    static final int DEFAULT_INITIAL = 512;
-    static final int DEFAULT_MAXIMUM = 524288;
+    private static final int DEFAULT_MINIMUM = 64;
+    private static final int DEFAULT_INITIAL = 512;
+    private static final int DEFAULT_MAXIMUM = 524288;
 
     private static final int INDEX_INCREMENT = 4;
     private static final int INDEX_DECREMENT = 1;
@@ -96,21 +96,21 @@ public class AdaptiveOutputBufAllocator {
         int guess();
 
         /**
-         * Records the the actual number of write bytes in the previous write operation so that the allocator allocates
+         * Records the the actual number of wrote bytes in the previous write operation so that the allocator allocates
          * the buffer with potentially more correct capacity.
          *
-         * @param actualWriteBytes the actual number of write bytes in the previous allocate operation
+         * @param actualWroteBytes the actual number of wrote bytes in the previous allocate operation
          */
-        void record(int actualWriteBytes);
+        void record(int actualWroteBytes);
     }
 
     private static final class HandleImpl implements Handle {
 
         private final int minIndex;
         private final int maxIndex;
-        private int index;                          // same thread read/write
-        private volatile int nextAllocateBufSize;   // different thread read/write
-        private boolean decreaseNow;                // same thread read/write
+        private int index;                          // Single IO thread read/write
+        private volatile int nextAllocateBufSize;   // Single IO thread read/write, other thread read
+        private boolean decreaseNow;                // Single IO thread read/write
 
         HandleImpl(int minIndex, int maxIndex, int initial) {
             this.minIndex = minIndex;
@@ -131,8 +131,8 @@ public class AdaptiveOutputBufAllocator {
         }
 
         @Override
-        public void record(int actualWriteBytes) {
-            if (actualWriteBytes <= SIZE_TABLE[Math.max(0, index - INDEX_DECREMENT - 1)]) {
+        public void record(int actualWroteBytes) {
+            if (actualWroteBytes <= SIZE_TABLE[Math.max(0, index - INDEX_DECREMENT - 1)]) {
                 if (decreaseNow) {
                     index = Math.max(index - INDEX_DECREMENT, minIndex);
                     nextAllocateBufSize = SIZE_TABLE[index];
@@ -140,7 +140,7 @@ public class AdaptiveOutputBufAllocator {
                 } else {
                     decreaseNow = true;
                 }
-            } else if (actualWriteBytes >= nextAllocateBufSize) {
+            } else if (actualWroteBytes >= nextAllocateBufSize) {
                 index = Math.min(index + INDEX_INCREMENT, maxIndex);
                 nextAllocateBufSize = SIZE_TABLE[index];
                 decreaseNow = false;
@@ -154,8 +154,8 @@ public class AdaptiveOutputBufAllocator {
 
     /**
      * Creates a new predictor with the default parameters.  With the default
-     * parameters, the expected buffer size starts from {@code 1024}, does not
-     * go down below {@code 64}, and does not go up above {@code 65536}.
+     * parameters, the expected buffer size starts from {@code 512}, does not
+     * go down below {@code 64}, and does not go up above {@code 524288}.
      */
     private AdaptiveOutputBufAllocator() {
         this(DEFAULT_MINIMUM, DEFAULT_INITIAL, DEFAULT_MAXIMUM);

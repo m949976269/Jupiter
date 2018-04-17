@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-package org.jupiter.serialization.kryo.buffer;
+package org.jupiter.example;
 
-import com.esotericsoftware.kryo.io.Output;
-import org.jupiter.serialization.OutputBuf;
+import org.jupiter.rpc.ServiceProviderImpl;
 
 /**
  * jupiter
- * org.jupiter.serialization.kryo.buffer
+ * org.jupiter.example
  *
  * @author jiachun.fjc
  */
-public final class OutputFactory {
+@ServiceProviderImpl(version = "1.0.0.daily")
+public class UserServiceImpl implements UserService {
 
-    public static Output getOutput(OutputBuf outputBuf) {
-        return new NioBufOutput(outputBuf, -1);
+    @Override
+    public User createUser() {
+        return User.createUser();
     }
-
-    private OutputFactory() {}
 }

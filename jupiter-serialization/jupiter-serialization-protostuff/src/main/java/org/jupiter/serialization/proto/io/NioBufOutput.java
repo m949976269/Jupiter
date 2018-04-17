@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.jupiter.serialization.proto.buffer;
+package org.jupiter.serialization.proto.io;
 
 import io.protostuff.ByteString;
 import io.protostuff.IntSerializer;
@@ -22,7 +22,8 @@ import io.protostuff.Output;
 import io.protostuff.Schema;
 import org.jupiter.common.util.internal.UnsafeReferenceFieldUpdater;
 import org.jupiter.common.util.internal.UnsafeUpdater;
-import org.jupiter.serialization.OutputBuf;
+import org.jupiter.common.util.internal.UnsafeUtf8Util;
+import org.jupiter.serialization.io.OutputBuf;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,7 +34,7 @@ import static io.protostuff.WireFormat.*;
 
 /**
  * jupiter
- * org.jupiter.serialization.proto.buffer
+ * org.jupiter.serialization.proto.io
  *
  * @author jiachun.fjc
  */
@@ -43,11 +44,13 @@ class NioBufOutput implements Output {
             UnsafeUpdater.newReferenceFieldUpdater(ByteString.class, "bytes");
 
     protected final OutputBuf outputBuf;
+    protected final int maxCapacity;
     protected ByteBuffer nioBuffer;
     protected int capacity;
 
-    NioBufOutput(OutputBuf outputBuf, int minWritableBytes) {
+    NioBufOutput(OutputBuf outputBuf, int minWritableBytes, int maxCapacity) {
         this.outputBuf = outputBuf;
+        this.maxCapacity = maxCapacity;
         nioBuffer = outputBuf.nioByteBuffer(minWritableBytes);
         capacity = nioBuffer.remaining();
     }
@@ -142,9 +145,55 @@ class NioBufOutput implements Output {
 
     @Override
     public void writeString(int fieldNumber, CharSequence value, boolean repeated) throws IOException {
-        // TODO the original implementation is a lot more complex, is this compatible?
-        byte[] strBytes = value.toString().getBytes("UTF-8");
-        writeByteArray(fieldNumber, strBytes, repeated);
+        writeVarInt32(makeTag(fieldNumber, WIRETYPE_LENGTH_DELIMITED));
+
+        // UTF-8 byte length of the string is at least its UTF-16 code unit length (value.length()),
+        // and at most 3 times of it. We take advantage of this in both branches below.
+        int minLength = value.length();
+        int maxLength = minLength * UnsafeUtf8Util.MAX_BYTES_PER_CHAR;
+        int minLengthVarIntSize = VarInts.computeRawVarInt32Size(minLength);
+        int maxLengthVarIntSize = VarInts.computeRawVarInt32Size(maxLength);
+        if (minLengthVarIntSize == maxLengthVarIntSize) {
+            int position = nioBuffer.position();
+
+            ensureCapacity(maxLengthVarIntSize + maxLength);
+
+            // Save the current position and increment past the length field. We'll come back
+            // and write the length field after the encoding is complete.
+            int stringStartPos = position + maxLengthVarIntSize;
+            nioBuffer.position(stringStartPos);
+
+            int length;
+            // Encode the string.
+            if (nioBuffer.isDirect()) {
+                UnsafeUtf8Util.encodeUtf8Direct(value, nioBuffer);
+                // Write the length and advance the position.
+                length = nioBuffer.position() - stringStartPos;
+            } else {
+                int offset = nioBuffer.arrayOffset() + stringStartPos;
+                int outIndex = UnsafeUtf8Util.encodeUtf8(value, nioBuffer.array(), offset, nioBuffer.remaining());
+                length = outIndex - offset;
+            }
+            nioBuffer.position(position);
+            writeVarInt32(length);
+            nioBuffer.position(stringStartPos + length);
+        } else {
+            // Calculate and write the encoded length.
+            int length = UnsafeUtf8Util.encodedLength(value);
+            writeVarInt32(length);
+
+            ensureCapacity(length);
+
+            if (nioBuffer.isDirect()) {
+                // Write the string and advance the position.
+                UnsafeUtf8Util.encodeUtf8Direct(value, nioBuffer);
+            } else {
+                int pos = nioBuffer.position();
+                UnsafeUtf8Util.encodeUtf8(value, nioBuffer.array(),
+                        nioBuffer.arrayOffset() + pos, nioBuffer.remaining());
+                nioBuffer.position(pos + length);
+            }
+        }
     }
 
     @Override
@@ -178,32 +227,26 @@ class NioBufOutput implements Output {
     }
 
     protected void writeVarInt32(int value) throws IOException {
-        byte[] buf = new byte[5];
-        int locPtr = 0;
+        ensureCapacity(5);
         while (true) {
             if ((value & ~0x7F) == 0) {
-                buf[locPtr++] = (byte) value;
-                ensureCapacity(locPtr);
-                nioBuffer.put(buf, 0, locPtr);
+                nioBuffer.put((byte) value);
                 return;
             } else {
-                buf[locPtr++] = (byte) ((value & 0x7F) | 0x80);
+                nioBuffer.put((byte) ((value & 0x7F) | 0x80));
                 value >>>= 7;
             }
         }
     }
 
     protected void writeVarInt64(long value) throws IOException {
-        byte[] buf = new byte[10];
-        int locPtr = 0;
+        ensureCapacity(10);
         while (true) {
             if ((value & ~0x7FL) == 0) {
-                buf[locPtr++] = (byte) value;
-                ensureCapacity(locPtr);
-                nioBuffer.put(buf, 0, locPtr);
+                nioBuffer.put((byte) value);
                 return;
             } else {
-                buf[locPtr++] = (byte) (((int) value & 0x7F) | 0x80);
+                nioBuffer.put((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
         }
@@ -230,19 +273,22 @@ class NioBufOutput implements Output {
         nioBuffer.put(value, offset, length);
     }
 
-    protected void ensureCapacity(int required) {
+    protected void ensureCapacity(int required) throws ProtocolException {
         if (nioBuffer.remaining() < required) {
             int position = nioBuffer.position();
 
             while (capacity - position < required) {
-                capacity = capacity << 1;
+                if (capacity == maxCapacity) {
+                    throw new ProtocolException(
+                            "Buffer overflow. Available: " + (capacity - position) + ", required: " + required);
+                }
+                capacity = Math.min(capacity << 1, maxCapacity);
                 if (capacity < 0) {
-                    capacity = Integer.MAX_VALUE;
+                    capacity = maxCapacity;
                 }
             }
 
             nioBuffer = outputBuf.nioByteBuffer(capacity - position);
-
             capacity = nioBuffer.limit();
         }
     }

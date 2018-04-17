@@ -14,26 +14,15 @@
  * limitations under the License.
  */
 
-package org.jupiter.serialization;
-
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
+package org.jupiter.rpc.flow.control;
 
 /**
  * jupiter
- * org.jupiter.serialization
+ * org.jupiter.rpc.flow.control
  *
  * @author jiachun.fjc
  */
-public interface OutputBuf {
+public interface FlowControllerHolder<T> {
 
-    OutputStream outputStream();
-
-    ByteBuffer nioByteBuffer(int minWritableBytes);
-
-    int size();
-
-    boolean hasMemoryAddress();
-
-    Object attach();
+    FlowController<T> get();
 }

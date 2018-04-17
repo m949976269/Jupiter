@@ -24,7 +24,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
-import org.jupiter.serialization.OutputBuf;
+import org.jupiter.serialization.io.OutputBuf;
 import org.jupiter.transport.JProtocolHeader;
 import org.jupiter.transport.channel.JChannel;
 import org.jupiter.transport.channel.JFutureListener;
@@ -223,11 +223,8 @@ public class NettyChannel implements JChannel {
             }
 
             int position = nioByteBuffer.position();
-
             nioByteBuffer = newNioByteBuffer(byteBuf, position + minWritableBytes);
-
             nioByteBuffer.position(position);
-
             return nioByteBuffer;
         }
 
@@ -245,15 +242,15 @@ public class NettyChannel implements JChannel {
         }
 
         @Override
-        public Object attach() {
-            int actualWriteBytes = byteBuf.writerIndex();
+        public Object backingObject() {
+            int actualWroteBytes = byteBuf.writerIndex();
             if (nioByteBuffer != null) {
-                actualWriteBytes += nioByteBuffer.position();
+                actualWroteBytes += nioByteBuffer.position();
             }
 
-            allocHandle.record(actualWriteBytes);
+            allocHandle.record(actualWroteBytes);
 
-            return byteBuf.writerIndex(actualWriteBytes);
+            return byteBuf.writerIndex(actualWroteBytes);
         }
 
         private static ByteBuffer newNioByteBuffer(ByteBuf byteBuf, int writableBytes) {

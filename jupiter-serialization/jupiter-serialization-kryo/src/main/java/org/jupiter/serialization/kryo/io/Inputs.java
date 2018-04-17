@@ -14,28 +14,34 @@
  * limitations under the License.
  */
 
-package org.jupiter.serialization.kryo.buffer;
+package org.jupiter.serialization.kryo.io;
 
 import com.esotericsoftware.kryo.io.ByteBufferInput;
+import com.esotericsoftware.kryo.io.FastInput;
 import com.esotericsoftware.kryo.io.Input;
-import org.jupiter.serialization.InputBuf;
+import org.jupiter.serialization.io.InputBuf;
 
 import java.nio.ByteBuffer;
 
 /**
  * jupiter
- * org.jupiter.serialization.kryo.buffer
+ * org.jupiter.serialization.kryo.io
  *
  * @author jiachun.fjc
  */
-public final class InputFactory {
+public final class Inputs {
 
     public static Input getInput(InputBuf inputBuf) {
         ByteBuffer nioBuf = inputBuf.nioByteBuffer();
-        ByteBufferInput kInput = new ByteBufferInput();
-        kInput.setBuffer(nioBuf, 0, nioBuf.capacity());
-        return kInput;
+        ByteBufferInput input = new ByteBufferInput();
+        input.setVarIntsEnabled(false); // Compatible with FastInput
+        input.setBuffer(nioBuf, 0, nioBuf.capacity());
+        return input;
     }
 
-    private InputFactory() {}
+    public static Input getInput(byte[] bytes, int offset, int length) {
+        return new FastInput(bytes, offset, length);
+    }
+
+    private Inputs() {}
 }

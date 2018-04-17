@@ -14,22 +14,28 @@
  * limitations under the License.
  */
 
-package org.jupiter.serialization.proto.buffer;
+package org.jupiter.serialization.hessian.io;
 
-import io.protostuff.Output;
-import org.jupiter.serialization.OutputBuf;
+import com.caucho.hessian.io.Hessian2Output;
+import org.jupiter.serialization.io.OutputBuf;
+
+import java.io.OutputStream;
 
 /**
  * jupiter
- * org.jupiter.serialization.proto.buffer
+ * org.jupiter.serialization.hessian.io
  *
  * @author jiachun.fjc
  */
-public class OutputFactory {
+public final class Outputs {
 
-    public static Output getOutput(OutputBuf outputBuf) {
-        return new NioBufOutput(outputBuf, -1);
+    public static Hessian2Output getOutput(OutputBuf outputBuf) {
+        return new Hessian2Output(outputBuf.outputStream());
     }
 
-    private OutputFactory() {}
+    public static Hessian2Output getOutput(OutputStream buf) {
+        return new Hessian2Output(buf);
+    }
+
+    private Outputs() {}
 }
