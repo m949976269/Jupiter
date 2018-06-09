@@ -16,6 +16,7 @@
 
 package org.jupiter.common.util.internal;
 
+import org.jupiter.common.util.ThrowUtil;
 import org.jupiter.common.util.internal.logging.InternalLogger;
 import org.jupiter.common.util.internal.logging.InternalLoggerFactory;
 import sun.misc.Unsafe;
@@ -335,6 +336,19 @@ public final class UnsafeUtil {
      */
     public static long objectFieldOffset(Field field) {
         return field == null || unsafe == null ? -1 : unsafe.objectFieldOffset(field);
+    }
+
+    /**
+     * Returns the offset of the provided class and fieldName, or {@code -1} if {@code sun.misc.Unsafe} is not
+     * available.
+     */
+    public static long objectFieldOffset(Class<?> clazz, String fieldName) {
+        try {
+            return objectFieldOffset(clazz.getDeclaredField(fieldName));
+        } catch (NoSuchFieldException e) {
+            ThrowUtil.throwException(e);
+        }
+        return -1; // never get here
     }
 
     /**

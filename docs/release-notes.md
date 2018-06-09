@@ -1,6 +1,11 @@
 Jupiter release notes
 ------------------------
-### 20180-4-13: version 1.2.21
+### 2018-06-06:
+
+- DefaultInvokeFuture#roundFutures初始容量配置, 避免频繁扩容
+- [DefaultInvokeFuture#TimeoutScanner优化](https://github.com/fengjiachun/Jupiter/issues/62)
+
+### 2018-04-13: version 1.2.21
 
 - 个别代码重新整理
 
